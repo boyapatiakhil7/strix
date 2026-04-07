@@ -27,13 +27,13 @@ from rich.text import Text
 from strix.config import Config, apply_saved_config, save_current_config
 from strix.telemetry.tracer import get_global_tracer
 
-
-# Identity audit tools are all sandbox_execution=False (they call Microsoft Graph
-# externally, not via Docker). Force sandbox mode off so they register correctly.
-import os as _os
-_os.environ["STRIX_SANDBOX_MODE"] = "false"
-
+# Apply saved config first (may set STRIX_SANDBOX_MODE=true from user's saved settings).
 apply_saved_config()
+
+# Override AFTER apply_saved_config so the correct value is seen by @register_tool
+# decorators when strix.tools.entra is first imported below.
+# Entra tools are sandbox_execution=False (Graph API calls — no Docker needed).
+os.environ["STRIX_SANDBOX_MODE"] = "false"
 
 from strix.interface.identity_cli import run_identity_cli  # noqa: E402
 from strix.interface.utils import generate_run_name, build_final_stats_text  # noqa: E402
