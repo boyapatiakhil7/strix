@@ -62,7 +62,8 @@ async def run_identity_cli(args: Any) -> None:
         "user_instructions": args.instruction or "",
     }
 
-    llm_config = LLMConfig(scan_mode="deep")
+    # No scan_mode — identity audit has its own skill set via EntraAuditAgent defaults.
+    llm_config = LLMConfig()
     agent_config = {
         "llm_config": llm_config,
         "max_iterations": 300,

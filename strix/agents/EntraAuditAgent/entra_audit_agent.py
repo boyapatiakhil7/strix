@@ -105,6 +105,16 @@ class IdentityLLM(LLM):
 class EntraAuditAgent(BaseAgent):
     max_iterations = 300
 
+    async def _initialize_sandbox_and_state(self, task: str) -> None:
+        """
+        Override base implementation to skip Docker sandbox creation entirely.
+        Identity audit tools are all sandbox_execution=False (direct Graph API calls),
+        so no Docker container is needed.  We only set the task on the agent state.
+        """
+        if not self.state.task:
+            self.state.task = task
+        self.state.add_message("user", task)
+
     def __init__(self, config: dict[str, Any]):
         default_skills: list[str] = []
 
