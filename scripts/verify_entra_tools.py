@@ -189,14 +189,14 @@ if not all([tenant_id, client_id, client_secret]):
 else:
     def _live_tenant_info() -> str:
         from strix.tools.entra.entra_graph_actions import entra_get_tenant_info
-        result = entra_get_tenant_info(AGENT_STATE)
+        result = entra_get_tenant_info()
         if not result["success"]:
             raise RuntimeError(result.get("error", "unknown error"))
         return f"tenant={result['display_name']} ({result['tenant_id'][:8]}...)"
 
     def _live_stale_users() -> str:
         from strix.tools.entra.entra_graph_actions import entra_list_stale_users
-        result = entra_list_stale_users(AGENT_STATE, stale_threshold_days=90)
+        result = entra_list_stale_users(stale_threshold_days=90)
         if not result["success"]:
             raise RuntimeError(result.get("error", "unknown error"))
         return f"scanned={result['total_users_scanned']}, stale={result['stale_count']}"
