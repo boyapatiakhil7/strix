@@ -46,6 +46,8 @@ dependencies = [
   "opentelemetry-exporter-otlp-proto-http>=1.40.0",
   "scrubadub>=2.0.1",
   "defusedxml>=0.7.1",
+  "msal>=1.28.0",
+  "httpx>=0.27.0",
 ]
 
 [project.scripts]
@@ -138,6 +140,7 @@ module = [
     "opentelemetry.*",
     "scrubadub.*",
     "traceloop.*",
+    "msal.*",
 ]
 ignore_missing_imports = true
 

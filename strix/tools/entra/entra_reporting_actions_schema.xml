@@ -1,0 +1,120 @@
+<tools>
+  <tool name="create_identity_finding">
+    <description>Create an identity security finding for the Entra ID audit report.
+
+Use this tool to document a confirmed identity security issue discovered during
+the audit. Only call this AFTER you have validated the finding with evidence from
+the Graph API tools — do not report theoretical or unconfirmed issues.
+
+finding_type values map to audit domains:
+- stale_identity   → from entra_list_stale_users / entra_list_stale_service_principals
+- privileged_role  → from entra_list_privileged_role_assignments
+- app_permission   → from entra_list_app_permissions
+- guest_access     → from entra_list_guests
+- ca_gap           → from entra_list_conditional_access_policies
+- sod_conflict     → from entra_list_role_assignments_per_user
+
+DO NOT USE:
+- For theoretical or unconfirmed issues
+- When affected_objects is empty or unknown
+- To re-report an already reported finding (deduplication is enforced)
+- For general observations without a specific identity object</description>
+    <parameters>
+      <parameter name="finding_type" type="string" required="true">
+        <description>Category of finding. Must be one of:
+stale_identity, privileged_role, app_permission, guest_access, ca_gap, sod_conflict</description>
+      </parameter>
+      <parameter name="title" type="string" required="true">
+        <description>Short descriptive title identifying the specific finding.
+Examples:
+- "Stale Global Admin Account — jsmith@contoso.com"
+- "Guest User with Privileged Role — ext_vendor@gmail.com"
+- "MFA Not Enforced for All Users — Conditional Access Gap"
+- "SoD Conflict: User Administrator + Authentication Administrator — alice@contoso.com"</description>
+      </parameter>
+      <parameter name="severity" type="string" required="true">
+        <description>Severity level. Must be one of: critical, high, medium, low, informational
+
+Guidance:
+- critical: Direct path to tenant takeover (e.g. stale Global Admin, SP with GA role)
+- high: Significant risk requiring prompt action (e.g. guest with privileged role, no MFA policy)
+- medium: Elevated risk with mitigating factors (e.g. stale account >90d, broad delegated grants)
+- low: Minor risk or policy violation (e.g. expired credential on low-privilege app)
+- informational: Observation without immediate risk</description>
+      </parameter>
+      <parameter name="affected_objects" type="string" required="true">
+        <description>JSON string — list of Entra objects affected by this finding.
+Format: [{"object_id": "...", "display_name": "...", "object_type": "user|servicePrincipal|group|app"}]
+Must contain at least one object. Use exact object_id values from Graph API responses.</description>
+      </parameter>
+      <parameter name="description" type="string" required="true">
+        <description>Clear explanation of the finding:
+- What was discovered
+- Why it is a security risk
+- How it was found (which tool, what data)
+Be specific — reference the affected objects by name.</description>
+      </parameter>
+      <parameter name="evidence" type="string" required="true">
+        <description>JSON string — raw API response excerpts that confirm the finding.
+Include the key fields from the Graph API response that prove the issue
+(e.g. last_sign_in_datetime, role_name, permission_value, account_enabled).
+Do not include sensitive credential values.</description>
+      </parameter>
+      <parameter name="remediation" type="string" required="true">
+        <description>Specific, actionable remediation steps for the tenant admin.
+Include Azure portal navigation paths or PowerShell/Graph API commands where applicable.
+Examples:
+- "Disable the account in Entra admin center > Users > [user] > Edit > Account status"
+- "Remove the Global Administrator role via PIM > Role assignments > [user] > Remove"
+- "Create a Conditional Access policy requiring MFA for all users under Security > Conditional Access"</description>
+      </parameter>
+      <parameter name="risk_score" type="integer" required="false">
+        <description>Override risk score between 1 and 10. If 0 or omitted, derived from severity:
+critical=9, high=7, medium=5, low=3, informational=1</description>
+      </parameter>
+      <parameter name="tenant_id" type="string" required="false">
+        <description>Azure tenant ID (GUID). If omitted, inferred from AZURE_TENANT_ID environment variable.</description>
+      </parameter>
+    </parameters>
+    <returns type="Dict[str, Any]">
+      <description>Response containing:
+- success: bool
+- message: Confirmation or error message
+- report_id: Generated finding ID (on success)
+- finding_type: Echo of input finding_type
+- severity: Echo of input severity
+- risk_score: Effective risk score used
+- errors: List of validation error messages (on failure)
+- duplicate_of: ID of the existing duplicate finding (if duplicate detected)</description>
+    </returns>
+    <examples>
+  <function=create_identity_finding>
+  <parameter=finding_type>stale_identity</parameter>
+  <parameter=title>Stale Global Admin Account — jsmith@contoso.com</parameter>
+  <parameter=severity>critical</parameter>
+  <parameter=affected_objects>[{"object_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", "display_name": "John Smith", "object_type": "user"}]</parameter>
+  <parameter=description>User jsmith@contoso.com holds the Global Administrator role but has not signed in for 247 days. A dormant Global Admin account represents a critical attack surface — if compromised, an attacker gains unrestricted tenant-wide access with no detection signal from normal usage patterns.</parameter>
+  <parameter=evidence>{"upn": "jsmith@contoso.com", "account_enabled": true, "last_sign_in_datetime": "2025-08-03T09:12:44Z", "days_inactive": 247, "stale_reason": "inactive_247d", "risk_level": "critical", "roles": ["Global Administrator"]}</parameter>
+  <parameter=remediation>1. Confirm with the account owner whether the account is still required.
+2. If no longer needed: Entra admin center > Users > jsmith@contoso.com > Edit properties > Account status > Disabled.
+3. Remove the Global Administrator role via Entra admin center > Roles and administrators > Global Administrator > Remove assignment.
+4. If account is required, enforce re-authentication and review role necessity — consider replacing with a less-privileged role.</parameter>
+  </function>
+
+  <function=create_identity_finding>
+  <parameter=finding_type>ca_gap</parameter>
+  <parameter=title>No Conditional Access Policy Enforcing MFA for All Users</parameter>
+  <parameter=severity>high</parameter>
+  <parameter=affected_objects>[{"object_id": "tenant", "display_name": "All Users", "object_type": "group"}]</parameter>
+  <parameter=description>No enabled Conditional Access policy requires MFA for all users across all applications. Without MFA enforcement, any compromised password grants full account access. This is a foundational identity security gap.</parameter>
+  <parameter=evidence>{"enabled_policies": 3, "report_only_policies": 1, "gap_signals": ["No enabled policy enforces MFA for all users", "Legacy authentication protocols not blocked"]}</parameter>
+  <parameter=remediation>1. Navigate to Entra admin center > Security > Conditional Access > New policy.
+2. Assign to: All users (exclude break-glass accounts).
+3. Target: All cloud apps.
+4. Grant: Require multi-factor authentication.
+5. Enable the policy in enforcement mode (not report-only).
+6. Also create a separate policy to block legacy authentication protocols.</parameter>
+  </function>
+    </examples>
+  </tool>
+</tools>

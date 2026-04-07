@@ -1,0 +1,263 @@
+<tools>
+  <tool name="entra_get_tenant_info">
+    <description>Retrieve basic tenant information from Entra ID / Azure AD.
+
+Use this as the first tool call in any identity audit to establish the tenant context —
+tenantId, display name, verified domains. The root agent calls this during pre-flight
+before spawning any sub-agents.</description>
+    <returns type="Dict[str, Any]">
+      <description>Response containing:
+- success: bool
+- tenant_id: Azure AD tenant GUID
+- display_name: Tenant display name
+- tenant_type: e.g. "AAD"
+- created_date: ISO 8601 datetime
+- verified_domains: List of verified domain names</description>
+    </returns>
+    <examples>
+  <function=entra_get_tenant_info>
+  </function>
+    </examples>
+  </tool>
+
+  <tool name="entra_list_stale_users">
+    <description>List enabled user accounts that are stale — either never signed in
+or inactive beyond a configurable threshold.
+
+Use this tool as the Stale Identity Agent to find dormant user accounts that represent
+unnecessary attack surface. Enabled accounts with no recent sign-in can be compromised
+without detection.
+
+Returns accounts with stale_reason ("never_signed_in" or "inactive_Xd") and
+risk_level ("critical" for never signed in, "high" for >180d, "medium" for 90-180d).
+
+Note: signInActivity requires AuditLog.Read.All permission.</description>
+    <parameters>
+      <parameter name="stale_threshold_days" type="integer" required="false">
+        <description>Number of days without sign-in to consider an account stale. Default: 90.</description>
+      </parameter>
+      <parameter name="include_never_signed_in" type="boolean" required="false">
+        <description>Include accounts that have never signed in (created more than threshold days ago). Default: true.</description>
+      </parameter>
+    </parameters>
+    <returns type="Dict[str, Any]">
+      <description>Response containing:
+- success: bool
+- total_users_scanned: Total enabled users checked
+- stale_count: Number of stale accounts found
+- threshold_days: Threshold used
+- stale_users: List of stale user objects, each with:
+    object_id, display_name, upn, mail, user_type, account_enabled,
+    created_datetime, last_sign_in_datetime, days_inactive, stale_reason,
+    risk_level, on_premises_synced</description>
+    </returns>
+    <examples>
+  <function=entra_list_stale_users>
+  <parameter=stale_threshold_days>90</parameter>
+  <parameter=include_never_signed_in>true</parameter>
+  </function>
+    </examples>
+  </tool>
+
+  <tool name="entra_list_stale_service_principals">
+    <description>List enabled service principals with no recent sign-in or usage activity.
+
+Service principals (app identities) that are no longer used but remain enabled represent
+persistent access paths that may be forgotten and unmonitored. Uses the beta
+servicePrincipalSignInActivities endpoint.
+
+Use this alongside entra_list_stale_users for complete stale identity coverage.</description>
+    <parameters>
+      <parameter name="stale_threshold_days" type="integer" required="false">
+        <description>Number of days without activity to consider a service principal stale. Default: 90.</description>
+      </parameter>
+    </parameters>
+    <returns type="Dict[str, Any]">
+      <description>Response containing:
+- success: bool
+- total_sps_scanned: Total service principals checked
+- stale_count: Number of stale SPs found
+- threshold_days: Threshold used
+- stale_service_principals: List of stale SP objects, each with:
+    object_id, app_id, display_name, sp_type, account_enabled,
+    created_datetime, last_sign_in_datetime, days_inactive,
+    stale_reason, risk_level</description>
+    </returns>
+    <examples>
+  <function=entra_list_stale_service_principals>
+  <parameter=stale_threshold_days>90</parameter>
+  </function>
+    </examples>
+  </tool>
+
+  <tool name="entra_list_privileged_role_assignments">
+    <description>List all privileged role assignments in the tenant — both active direct
+assignments and PIM-eligible assignments.
+
+Use this tool as the Privileged Role Agent to identify over-privileged users, service
+principals with administrative roles, guest users with elevated access, and excessive
+Global Administrator counts.
+
+Automatically expands group memberships for group-based role assignments.
+Flags risk patterns: GA count > 3, guests in roles, service principals with GA.</description>
+    <parameters>
+      <parameter name="include_eligible" type="boolean" required="false">
+        <description>Include PIM-eligible (not yet activated) assignments in addition to active assignments. Default: true.</description>
+      </parameter>
+    </parameters>
+    <returns type="Dict[str, Any]">
+      <description>Response containing:
+- success: bool
+- total_privileged_assignments: Total assignments found
+- active_direct_count: Active direct assignments count
+- pim_eligible_count: PIM eligible assignments count
+- risk_flags: List of high-level risk observations
+- assignments: List of assignment objects, each with:
+    assignment_id, role_definition_id, role_name, is_privileged,
+    assignment_type (active_direct|pim_eligible),
+    principal_id, principal_display_name, principal_type (user|group|servicePrincipal),
+    principal_upn, principal_user_type, directory_scope_id, group_members</description>
+    </returns>
+    <examples>
+  <function=entra_list_privileged_role_assignments>
+  <parameter=include_eligible>true</parameter>
+  </function>
+    </examples>
+  </tool>
+
+  <tool name="entra_list_app_permissions">
+    <description>Audit OAuth application permissions, delegated grants, and app registration
+credential hygiene across the entire tenant.
+
+Use this tool as the App Permission Agent to identify:
+- High-risk application permissions (Directory.ReadWrite.All, Mail.ReadWrite, etc.)
+- Admin-consented delegated grants with broad scope
+- Multi-tenant applications accepting sign-ins from any organization
+- Expired or long-lived client secrets/certificates
+- Apps from unverified publishers with sensitive permissions
+
+Returns both application-type and delegated-type permission findings.</description>
+    <parameters>
+      <parameter name="flag_high_risk_only" type="boolean" required="false">
+        <description>If true, only return findings matching the high-risk permission list. If false, returns all permissions. Default: false.</description>
+      </parameter>
+    </parameters>
+    <returns type="Dict[str, Any]">
+      <description>Response containing:
+- success: bool
+- total_applications: App registrations scanned
+- total_service_principals: Service principals scanned
+- total_findings: Total findings across all categories
+- high_risk_count: Findings with critical or high severity
+- findings: List of finding objects. Each has:
+    type (app_role_assignment|delegated_grant|expired_credential|long_lived_credential|multi_tenant_app),
+    permission_category (application|delegated),
+    app_id, display_name, permission_value, risk_level, is_high_risk,
+    plus type-specific fields</description>
+    </returns>
+    <examples>
+  <function=entra_list_app_permissions>
+  <parameter=flag_high_risk_only>false</parameter>
+  </function>
+    </examples>
+  </tool>
+
+  <tool name="entra_list_guests">
+    <description>List all guest (B2B external) accounts in the tenant and assess their risk.
+
+Use this tool as the Guest Access Agent to identify:
+- Guests holding privileged role assignments (Critical)
+- Guests from personal email domains like gmail.com, hotmail.com (High)
+- Stale guest accounts that remain enabled but are no longer active
+- Guests with broad group memberships
+
+Cross-references guest accounts against role assignments automatically when
+check_role_assignments=true.</description>
+    <parameters>
+      <parameter name="check_role_assignments" type="boolean" required="false">
+        <description>Cross-reference each guest against the tenant's role assignment list. Default: true.</description>
+      </parameter>
+      <parameter name="check_group_memberships" type="boolean" required="false">
+        <description>Retrieve group memberships for each guest account. Default: true.</description>
+      </parameter>
+    </parameters>
+    <returns type="Dict[str, Any]">
+      <description>Response containing:
+- success: bool
+- total_guests: Total guest accounts found
+- enabled_guests: Enabled guest count
+- guests_with_roles: Guests holding role assignments
+- guests_from_personal_domains: Guests from gmail.com, hotmail.com, etc.
+- guests: List of guest objects, each with:
+    object_id, display_name, upn, mail, account_enabled, created_datetime,
+    last_sign_in_datetime, days_inactive, original_domain, is_personal_domain,
+    role_assignment_ids, group_memberships, risk_level, risk_reasons</description>
+    </returns>
+    <examples>
+  <function=entra_list_guests>
+  <parameter=check_role_assignments>true</parameter>
+  <parameter=check_group_memberships>true</parameter>
+  </function>
+    </examples>
+  </tool>
+
+  <tool name="entra_list_conditional_access_policies">
+    <description>Retrieve all Conditional Access policies and named locations from the tenant.
+
+Use this tool as the Conditional Access Gap Agent. Returns the full policy list
+including state (enabled|disabled|report-only), conditions, grant controls, and
+session controls.
+
+Also performs quick gap detection:
+- No enabled policy enforcing MFA
+- Legacy authentication not blocked
+- All policies in report-only mode (non-enforcing)
+
+The agent should build a coverage matrix from the raw policies to identify gaps
+for specific user/application combinations.</description>
+    <returns type="Dict[str, Any]">
+      <description>Response containing:
+- success: bool
+- total_policies: Total policies in tenant
+- enabled_count: Actively enforced policies
+- report_only_count: Non-enforcing monitoring policies
+- disabled_count: Disabled policies
+- gap_signals: List of immediately detected gap patterns
+- policies: Full list of policy objects with conditions, grantControls, sessionControls
+- named_locations: All named location definitions</description>
+    </returns>
+    <examples>
+  <function=entra_list_conditional_access_policies>
+  </function>
+    </examples>
+  </tool>
+
+  <tool name="entra_list_role_assignments_per_user">
+    <description>Return all role assignments pivoted to a per-user/per-principal dict.
+
+Use this tool as the SoD (Segregation of Duties) Agent. Returns a dict keyed by
+principal_id mapping to the list of roles that principal holds.
+
+Use the result to apply the SoD conflict matrix:
+- User Administrator + Authentication Administrator → full account takeover capability
+- Global Administrator + any role → redundant (GA includes all)
+- Application Administrator + Cloud Application Administrator → full app management
+- Privileged Role Administrator + Security Administrator → escalation + info access
+- Exchange Administrator + User Administrator → email exfiltration path
+- Any SP with Directory.ReadWrite.All + RoleManagement.ReadWrite.Directory → tenant takeover
+
+Only report users where both conflicting assignments are confirmed active
+(not expired PIM eligibility schedules).</description>
+    <returns type="Dict[str, Any]">
+      <description>Response containing:
+- success: bool
+- total_principals_with_roles: Total principals holding any role
+- multi_role_principals: Principals holding more than one role
+- assignments_per_user: Dict of { principal_id: [{ role_name, role_definition_id, assignment_type }] }</description>
+    </returns>
+    <examples>
+  <function=entra_list_role_assignments_per_user>
+  </function>
+    </examples>
+  </tool>
+</tools>
