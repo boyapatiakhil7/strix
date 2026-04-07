@@ -58,6 +58,7 @@ def create_identity_finding(
     severity: str,
     affected_objects: str,
     description: str,
+    impact: str,
     evidence: str,
     remediation: str,
     risk_score: int = 0,
@@ -85,7 +86,8 @@ def create_identity_finding(
         severity: critical | high | medium | low | informational
         affected_objects: JSON string — list of affected Entra objects.
             Format: [{"object_id": "...", "display_name": "...", "object_type": "user|servicePrincipal|group|app"}]
-        description: Explanation of the finding and how it was discovered.
+        description: Explanation of the finding and how it was discovered — what the API returned and why it is a problem.
+        impact: Business and security impact if this finding is not remediated — who is at risk and what an attacker could do.
         evidence: JSON string — raw API response excerpts confirming the finding.
         remediation: Specific, actionable remediation steps.
         risk_score: Override risk score 1–10. If 0, derived from severity.
@@ -115,6 +117,9 @@ def create_identity_finding(
             remediation=remediation,
         )
     )
+
+    if not impact or not impact.strip():
+        validation_errors.append("impact cannot be empty")
 
     if risk_score != 0 and not (1 <= risk_score <= 10):
         validation_errors.append("risk_score must be between 1 and 10, or 0 to derive from severity")
@@ -162,7 +167,7 @@ def create_identity_finding(
                 title=title,
                 description=description,
                 severity=severity,
-                impact=description,  # identity findings use description as impact
+                impact=impact,
                 target=f"Entra ID Tenant: {resolved_tenant_id}",
                 technical_analysis=evidence,
                 poc_description=f"Identity finding — see affected_objects and evidence fields.",

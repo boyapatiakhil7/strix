@@ -48,11 +48,18 @@ Format: [{"object_id": "...", "display_name": "...", "object_type": "user|servic
 Must contain at least one object. Use exact object_id values from Graph API responses.</description>
       </parameter>
       <parameter name="description" type="string" required="true">
-        <description>Clear explanation of the finding:
-- What was discovered
-- Why it is a security risk
-- How it was found (which tool, what data)
+        <description>Clear explanation of what was discovered and how:
+- What the API returned (specific values, dates, counts)
+- Which tool was used to find it
+- Why the configuration is a security problem
 Be specific — reference the affected objects by name.</description>
+      </parameter>
+      <parameter name="impact" type="string" required="true">
+        <description>Business and security impact if this finding is not remediated:
+- Who or what is at risk (users, data, tenant, third parties)
+- What an attacker could do if they exploit this gap
+- Potential compliance or regulatory implications
+Do NOT repeat the description — focus on consequences, not what was found.</description>
       </parameter>
       <parameter name="evidence" type="string" required="true">
         <description>JSON string — raw API response excerpts that confirm the finding.
@@ -93,7 +100,8 @@ critical=9, high=7, medium=5, low=3, informational=1</description>
   <parameter=title>Stale Global Admin Account — jsmith@contoso.com</parameter>
   <parameter=severity>critical</parameter>
   <parameter=affected_objects>[{"object_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", "display_name": "John Smith", "object_type": "user"}]</parameter>
-  <parameter=description>User jsmith@contoso.com holds the Global Administrator role but has not signed in for 247 days. A dormant Global Admin account represents a critical attack surface — if compromised, an attacker gains unrestricted tenant-wide access with no detection signal from normal usage patterns.</parameter>
+  <parameter=description>User jsmith@contoso.com holds the Global Administrator role but has not signed in for 247 days (last sign-in: 2025-08-03). Discovered via entra_list_stale_users with stale_threshold_days=90.</parameter>
+  <parameter=impact>A dormant Global Administrator account is a high-value target. If the credentials are compromised — via phishing, credential stuffing, or a data breach — an attacker gains unrestricted tenant-wide control: creating backdoor accounts, exfiltrating all directory data, disabling security controls, and persisting access indefinitely with no detection signal from normal usage patterns.</parameter>
   <parameter=evidence>{"upn": "jsmith@contoso.com", "account_enabled": true, "last_sign_in_datetime": "2025-08-03T09:12:44Z", "days_inactive": 247, "stale_reason": "inactive_247d", "risk_level": "critical", "roles": ["Global Administrator"]}</parameter>
   <parameter=remediation>1. Confirm with the account owner whether the account is still required.
 2. If no longer needed: Entra admin center > Users > jsmith@contoso.com > Edit properties > Account status > Disabled.
@@ -106,7 +114,8 @@ critical=9, high=7, medium=5, low=3, informational=1</description>
   <parameter=title>No Conditional Access Policy Enforcing MFA for All Users</parameter>
   <parameter=severity>high</parameter>
   <parameter=affected_objects>[{"object_id": "tenant", "display_name": "All Users", "object_type": "group"}]</parameter>
-  <parameter=description>No enabled Conditional Access policy requires MFA for all users across all applications. Without MFA enforcement, any compromised password grants full account access. This is a foundational identity security gap.</parameter>
+  <parameter=description>No enabled Conditional Access policy requires MFA for all users across all applications. entra_list_conditional_access_policies returned 3 enabled policies and 1 report-only policy, none of which enforces MFA for all users or blocks legacy authentication.</parameter>
+  <parameter=impact>Without MFA, any leaked or guessed password grants immediate, unrestricted access to all cloud applications. Password spray and credential stuffing attacks succeed at scale against tenants without MFA. This is the single highest-impact gap in identity security — Microsoft reports 99.9% of account compromise attacks are stopped by MFA.</parameter>
   <parameter=evidence>{"enabled_policies": 3, "report_only_policies": 1, "gap_signals": ["No enabled policy enforces MFA for all users", "Legacy authentication protocols not blocked"]}</parameter>
   <parameter=remediation>1. Navigate to Entra admin center > Security > Conditional Access > New policy.
 2. Assign to: All users (exclude break-glass accounts).
