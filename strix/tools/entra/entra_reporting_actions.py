@@ -175,13 +175,6 @@ def create_identity_finding(
                 cve=None,
                 cwe=None,
                 code_locations=None,
-                # Extra identity-specific fields stored as metadata
-                extra={
-                    "finding_type": finding_type,
-                    "affected_objects": affected_objects,
-                    "tenant_id": resolved_tenant_id,
-                    "risk_score": effective_risk_score,
-                },
             )
 
             return {
