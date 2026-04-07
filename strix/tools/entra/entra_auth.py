@@ -233,6 +233,7 @@ def graph_get_all_pages(
     path: str,
     params: dict[str, Any] | None = None,
     beta: bool = False,
+    max_pages: int = 20,
 ) -> list[dict[str, Any]]:
     """
     Paginate through all pages of a Graph API response following @odata.nextLink.
@@ -241,6 +242,8 @@ def graph_get_all_pages(
         path: Graph API path.
         params: OData query parameters.
         beta: If True, uses the /beta endpoint.
+        max_pages: Maximum number of pages to fetch (default 20 = up to 2000 items
+            with $top=100). Prevents runaway pagination on large tenants.
 
     Returns:
         Flat list of all items from the 'value' array across all pages.
@@ -262,8 +265,9 @@ def graph_get_all_pages(
 
     all_items: list[dict[str, Any]] = []
     current_params = params or {}
+    pages_fetched = 0
 
-    while url:
+    while url and pages_fetched < max_pages:
         try:
             with httpx.Client(timeout=30) as client:
                 response = client.get(url, headers=headers, params=current_params)
@@ -283,9 +287,13 @@ def graph_get_all_pages(
 
         items = data.get("value", [])
         all_items.extend(items)
+        pages_fetched += 1
 
         # Follow nextLink — clear params since they're embedded in the link
         url = data.get("@odata.nextLink", "")
         current_params = {}
+
+    if url and pages_fetched >= max_pages:
+        logger.warning(f"graph_get_all_pages: hit max_pages={max_pages} for {path}, results may be truncated")
 
     return all_items

@@ -499,20 +499,22 @@ def entra_list_app_permissions(
             },
         )
 
-        # Application role assignments per service principal
+        # Application role assignments — fetch tenant-wide in one call instead of
+        # one call per SP (avoids N+1 query that hangs on large tenants).
+        app_role_assignments_raw = graph_get_all_pages(
+            "appRoleAssignments",
+            params={
+                "$select": "id,principalId,resourceId,appRoleId,principalDisplayName,resourceDisplayName",
+                "$top": "999",
+            },
+        )
+        # Enrich with SP metadata from the already-fetched sp_by_id map
         app_role_assignments: list[dict[str, Any]] = []
-        for sp in service_principals:
-            try:
-                assignments = graph_get_all_pages(
-                    f"servicePrincipals/{sp['id']}/appRoleAssignments",
-                    params={"$top": "999"},
-                )
-                for assignment in assignments:
-                    assignment["_sp_display_name"] = sp.get("displayName")
-                    assignment["_sp_app_id"] = sp.get("appId")
-                app_role_assignments.extend(assignments)
-            except Exception:  # noqa: BLE001
-                pass
+        for assignment in app_role_assignments_raw:
+            sp = sp_by_id.get(assignment.get("principalId", ""), {})
+            assignment["_sp_display_name"] = sp.get("displayName", assignment.get("principalDisplayName", ""))
+            assignment["_sp_app_id"] = sp.get("appId", "")
+            app_role_assignments.append(assignment)
 
         now = datetime.now(UTC)
         findings: list[dict[str, Any]] = []
