@@ -330,10 +330,11 @@ def entra_list_privileged_role_assignments(
         include_eligible: If True, also returns PIM-eligible (not yet activated) assignments.
     """
     try:
-        # Get role definitions to build a name lookup
+        # Get role definitions to build a name lookup.
+        # Note: isPrivileged is beta-only — filter by PRIVILEGED_ROLE_DISPLAY_NAMES instead.
         role_defs = graph_get_all_pages(
             "roleManagement/directory/roleDefinitions",
-            params={"$select": "id,displayName,isBuiltIn,isPrivileged"},
+            params={"$select": "id,displayName,isBuiltIn"},
         )
         role_def_map: dict[str, dict[str, Any]] = {r["id"]: r for r in role_defs}
 
@@ -353,7 +354,7 @@ def entra_list_privileged_role_assignments(
             role_def = role_def_map.get(role_def_id, {})
             role_name = role_def.get("displayName", role_def_id)
 
-            if role_name not in PRIVILEGED_ROLE_DISPLAY_NAMES and not role_def.get("isPrivileged"):
+            if role_name not in PRIVILEGED_ROLE_DISPLAY_NAMES:
                 continue
 
             principal = assignment.get("principal", {})
@@ -383,7 +384,7 @@ def entra_list_privileged_role_assignments(
                 "assignment_id": assignment.get("id"),
                 "role_definition_id": role_def_id,
                 "role_name": role_name,
-                "is_privileged": role_def.get("isPrivileged", False),
+                "is_privileged": True,
                 "assignment_type": "active_direct",
                 "principal_id": principal.get("id"),
                 "principal_display_name": principal.get("displayName"),
@@ -409,7 +410,7 @@ def entra_list_privileged_role_assignments(
                     role_def = role_def_map.get(role_def_id, {})
                     role_name = role_def.get("displayName", role_def_id)
 
-                    if role_name not in PRIVILEGED_ROLE_DISPLAY_NAMES and not role_def.get("isPrivileged"):
+                    if role_name not in PRIVILEGED_ROLE_DISPLAY_NAMES:
                         continue
 
                     principal = elig.get("principal", {})
@@ -419,7 +420,7 @@ def entra_list_privileged_role_assignments(
                         "assignment_id": elig.get("id"),
                         "role_definition_id": role_def_id,
                         "role_name": role_name,
-                        "is_privileged": role_def.get("isPrivileged", False),
+                        "is_privileged": True,
                         "assignment_type": "pim_eligible",
                         "principal_id": principal.get("id"),
                         "principal_display_name": principal.get("displayName"),
@@ -839,10 +840,10 @@ def entra_list_role_assignments_per_user() -> dict[str, Any]:
     Returns: { user_id: [{ role_name, role_definition_id, assignment_type }] }
     """
     try:
-        # Get role definitions
+        # Get role definitions (isPrivileged is beta-only, omit from $select)
         role_defs = graph_get_all_pages(
             "roleManagement/directory/roleDefinitions",
-            params={"$select": "id,displayName,isPrivileged"},
+            params={"$select": "id,displayName"},
         )
         role_def_map: dict[str, str] = {r["id"]: r["displayName"] for r in role_defs}
 
