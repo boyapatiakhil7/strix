@@ -52,6 +52,8 @@ For each assignment in the `assignments` list:
 Call `create_identity_finding` for each confirmed issue:
 - `finding_type`: `privileged_role`
 - `affected_objects`: the principal (user, SP, or group)
+- `description`: what was found — who holds which role, assignment type (active/eligible), how it was discovered
+- `impact`: what an attacker can do with this role — tenant takeover for GA, user modification for User Admin, policy bypass for CA Admin
 - `evidence`: include `role_name`, `assignment_type`, `principal_type`, `principal_user_type`
 
 ## Severity Decision Table

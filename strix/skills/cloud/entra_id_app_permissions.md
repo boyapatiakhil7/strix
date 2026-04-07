@@ -54,6 +54,8 @@ escalate severity by one level — unverified publishers cannot be held accounta
 Call `create_identity_finding` for each confirmed issue:
 - `finding_type`: `app_permission`
 - `affected_objects`: the app registration or service principal
+- `description`: what was found — app name, which permissions it holds, consent type (admin/user), whether publisher is verified
+- `impact`: what an attacker who compromises this app can do with these permissions — read all mail, modify directory, assign roles, exfiltrate files; note if the app has no human oversight
 - `evidence`: include `permission_value`, `permission_category`, `consent_type`, `is_high_risk`
 
 ## High-Risk Permission Reference

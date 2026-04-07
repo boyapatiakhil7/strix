@@ -56,6 +56,8 @@ Call `create_identity_finding` for each confirmed conflict:
 - `finding_type`: `sod_conflict`
 - `severity`: per the matrix above
 - `affected_objects`: the principal holding the conflicting roles
+- `description`: what was found — which two roles conflict, who holds them, assignment types (active/eligible)
+- `impact`: what the conflict enables — which separation of duties control is broken, what an insider or compromised account can do by combining both roles (e.g. create users AND assign them roles)
 - `evidence`: list both conflicting role names, their `assignment_type`, and `role_definition_id`
 - `remediation`: see templates below
 

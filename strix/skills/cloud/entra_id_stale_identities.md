@@ -40,6 +40,8 @@ For each critical/high individual finding call `create_identity_finding`:
 - `finding_type`: `stale_identity`
 - `severity`: match the `risk_level` from the tool result
 - `affected_objects`: the specific user or SP object
+- `description`: what was found — account name, days inactive, last sign-in date, how it was discovered
+- `impact`: what an attacker could do if this dormant account is compromised — unmonitored access, no anomaly signals, blast radius based on any role assignments
 - `evidence`: include `last_sign_in_datetime`, `days_inactive`, `stale_reason`, `created_datetime`
 - `remediation`: see remediation templates below
 

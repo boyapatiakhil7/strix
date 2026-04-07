@@ -53,6 +53,8 @@ For high-risk guests (roles or personal domains), review `group_memberships`:
 Call `create_identity_finding` for each confirmed issue:
 - `finding_type`: `guest_access`
 - `affected_objects`: the guest user object(s)
+- `description`: what was found — guest UPN, domain, days inactive or never signed in, how it was discovered
+- `impact`: what an attacker who compromises this guest account can access — tenant resources, group memberships, any role assignments; personal domain guests have no corporate security controls
 - `evidence`: include `original_domain`, `is_personal_domain`, `role_assignment_ids`,
   `days_inactive`, `risk_reasons` from the tool result
 

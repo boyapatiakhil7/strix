@@ -71,6 +71,8 @@ Call `create_identity_finding` for each gap:
 - `finding_type`: `ca_gap`
 - `affected_objects`: use `[{"object_id": "tenant", "display_name": "All Users", "object_type": "group"}]`
   for tenant-wide gaps
+- `description`: what gap was found — which policy check failed, what the tool returned, why it is a misconfiguration
+- `impact`: what an attacker gains from this gap — credential attacks that succeed without MFA, lateral movement via legacy protocols, full tenant access without challenge
 - `evidence`: include relevant policy states and the specific gap detected
 
 ## Severity Decision Table
