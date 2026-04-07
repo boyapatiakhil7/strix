@@ -499,22 +499,33 @@ def entra_list_app_permissions(
             },
         )
 
-        # Application role assignments — fetch tenant-wide in one call instead of
-        # one call per SP (avoids N+1 query that hangs on large tenants).
-        app_role_assignments_raw = graph_get_all_pages(
-            "appRoleAssignments",
-            params={
-                "$select": "id,principalId,resourceId,appRoleId,principalDisplayName,resourceDisplayName",
-                "$top": "999",
-            },
-        )
-        # Enrich with SP metadata from the already-fetched sp_by_id map
+        # Application role assignments — query from the resource side (appRoleAssignedTo)
+        # for the key Microsoft APIs that host high-risk permissions.
+        # This is O(k) calls where k = number of key resource SPs (~5), not O(n) per client SP.
+        KEY_RESOURCE_APP_IDS = {
+            "00000003-0000-0000-c000-000000000000",  # Microsoft Graph
+            "00000002-0000-0ff1-ce00-000000000000",  # Exchange Online
+            "00000003-0000-0ff1-ce00-000000000000",  # SharePoint Online
+            "00000004-0000-0ff1-ce00-000000000000",  # Skype for Business
+            "c5393580-f805-4401-95e8-94b7a6ef2fc2",  # Office 365 Management APIs
+        }
         app_role_assignments: list[dict[str, Any]] = []
-        for assignment in app_role_assignments_raw:
-            sp = sp_by_id.get(assignment.get("principalId", ""), {})
-            assignment["_sp_display_name"] = sp.get("displayName", assignment.get("principalDisplayName", ""))
-            assignment["_sp_app_id"] = sp.get("appId", "")
-            app_role_assignments.append(assignment)
+        for sp in service_principals:
+            if sp.get("appId") not in KEY_RESOURCE_APP_IDS:
+                continue
+            try:
+                assignments = graph_get_all_pages(
+                    f"servicePrincipals/{sp['id']}/appRoleAssignedTo",
+                    params={"$top": "999"},
+                )
+                for assignment in assignments:
+                    client_sp = sp_by_id.get(assignment.get("principalId", ""), {})
+                    assignment["_sp_display_name"] = client_sp.get("displayName", assignment.get("principalDisplayName", ""))
+                    assignment["_sp_app_id"] = client_sp.get("appId", "")
+                    assignment["_resource_display_name"] = sp.get("displayName", "")
+                app_role_assignments.extend(assignments)
+            except Exception:  # noqa: BLE001
+                pass
 
         now = datetime.now(UTC)
         findings: list[dict[str, Any]] = []
