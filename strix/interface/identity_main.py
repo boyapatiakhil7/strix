@@ -27,12 +27,11 @@ from rich.text import Text
 from strix.config import Config, apply_saved_config, save_current_config
 from strix.telemetry.tracer import get_global_tracer
 
-# Apply saved config first (may set STRIX_SANDBOX_MODE=true from user's saved settings).
+# STRIX_SANDBOX_MODE=false was already set by strix.run_identity before this module
+# was imported, so @register_tool decorators on Entra tools registered correctly.
 apply_saved_config()
 
-# Override AFTER apply_saved_config so the correct value is seen by @register_tool
-# decorators when strix.tools.entra is first imported below.
-# Entra tools are sandbox_execution=False (Graph API calls — no Docker needed).
+# Re-assert after apply_saved_config in case it re-read a saved true value.
 os.environ["STRIX_SANDBOX_MODE"] = "false"
 
 from strix.interface.identity_cli import run_identity_cli  # noqa: E402
