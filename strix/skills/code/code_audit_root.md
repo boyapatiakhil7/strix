@@ -15,6 +15,20 @@ setup_repo(repo=<url_or_path>, run_name=<run_name>, branch=<branch>)
 detect_language(repo_path=<local_path>)
 ```
 
+Then discover ALL modules — tools do not cross module boundaries:
+
+```bash
+# Go monorepo: find every go.mod
+find /workspace/<subdir> -name "go.mod" -not -path "*/vendor/*" -not -path "*/.git/*"
+
+# Java: find every pom.xml or build.gradle (exclude generated dirs)
+find /workspace/<subdir> \( -name "pom.xml" -o -name "build.gradle" \) \
+  | grep -v "/target/" | grep -v "/build/"
+```
+
+Build a module map from this output (e.g. `["api", "workers/platform", "workers/graph"]`).
+Pass this map explicitly in every sub-agent task.
+
 Use `think` to decide language-specific sub-agent skills before spawning.
 
 ## Phase 1 — Spawn Four Parallel Sub-agents

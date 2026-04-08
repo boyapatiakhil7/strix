@@ -51,15 +51,22 @@ ROOT AGENT WORKFLOW:
 1. SETUP
    - Call setup_repo to confirm the repository is accessible
    - Call detect_language to identify Go / Java and build system
+   - Use terminal_execute to discover Go modules: `find /workspace/<subdir> -name "go.mod" -not -path "*/vendor/*"`
+   - Use terminal_execute to discover Java modules: `find /workspace/<subdir> -name "pom.xml" -o -name "build.gradle" | grep -v target | grep -v build/`
+   - Build a MODULE MAP: list every module directory (e.g. api/, workers/platform/, etc.)
    - Load the code_audit_root skill for detailed orchestration playbook
 
 2. PARALLEL SCAN PHASE — spawn four sub-agents simultaneously:
-   a. SAST Agent         — skills: gosec + semgrep_go_java
+   a. SAST Agent         — skills: gosec,semgrep_go_java
    b. Quality Agent      — skills: golangci_lint  OR  checkstyle_pmd  (based on language)
    c. Coverage Agent     — skills: go_coverage  OR  jacoco            (based on language)
    d. Secrets Agent      — skill: gitleaks
 
-   Pass the workspace path (/workspace/<subdir>) in each sub-agent task.
+   Pass the workspace path (/workspace/<subdir>) AND the full module map in each sub-agent task.
+   Example task prefix: "Repo is at /workspace/repo. Go modules: api/, workers/platform/, workers/graph/. Run tools in each module directory."
+
+   MULTI-MODULE RULE: Tools like gosec, golangci-lint, and go test DO NOT cross go.mod boundaries.
+   Sub-agents MUST iterate over every module directory and run the tool separately in each one.
 
 3. WAIT — call wait_for_message until all four sub-agents complete
 
