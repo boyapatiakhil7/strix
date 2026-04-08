@@ -50,6 +50,7 @@ dependencies = [
 
 [project.scripts]
 strix = "strix.interface.main:main"
+strix-code = "strix.run_code:main"
 
 [project.optional-dependencies]
 vertex = ["google-cloud-aiplatform>=1.38"]

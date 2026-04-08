@@ -1,0 +1,141 @@
+<tools>
+  <tool name="create_code_finding">
+    <description>Report a code audit finding (SAST, quality, coverage gap, or secret leak).
+
+Each call assigns a unique CODE-XXXX identifier and appends the finding to the audit record.
+
+finding_type values:
+- "sast"      — static analysis security finding (gosec, semgrep)
+- "quality"   — code quality / style issue (golangci-lint, checkstyle, PMD)
+- "coverage"  — low or missing test coverage (go-coverage, jacoco)
+- "secret"    — leaked credential or secret (gitleaks)
+
+severity values: critical | high | medium | low | info
+
+source_tool values: gosec | semgrep | golangci-lint | checkstyle | pmd | gitleaks | go-coverage | jacoco | manual
+
+Rules:
+- description: what was found — the specific code pattern, file location, and rule triggered
+- impact:      consequences — what an attacker or system failure could do with this finding; do NOT repeat the description
+- Call create_code_finding ONCE per distinct finding — do not duplicate
+- Call write_fix_proposal AFTER this if you have a concrete fix diff
+</description>
+    <parameters>
+      <parameter name="finding_type" type="string" required="true">
+        <description>Category: sast | quality | coverage | secret</description>
+      </parameter>
+      <parameter name="severity" type="string" required="true">
+        <description>Risk level: critical | high | medium | low | info</description>
+      </parameter>
+      <parameter name="rule_id" type="string" required="true">
+        <description>Tool rule identifier (e.g. G401, CWE-89, errcheck, S2068). Use the tool's native rule ID.</description>
+      </parameter>
+      <parameter name="file_path" type="string" required="true">
+        <description>Relative path to the affected file from the repo root (e.g. cmd/server/main.go).</description>
+      </parameter>
+      <parameter name="line_number" type="integer" required="true">
+        <description>Line number where the issue occurs (0 if not applicable, e.g. for coverage summaries).</description>
+      </parameter>
+      <parameter name="description" type="string" required="true">
+        <description>What was found: the specific code pattern, function name, rule triggered, and file/line context. Do NOT include business impact here.</description>
+      </parameter>
+      <parameter name="impact" type="string" required="true">
+        <description>Business and security consequences if this finding is not addressed. Who is at risk, what an attacker could do, or what failure mode could occur. Do NOT repeat the description.</description>
+      </parameter>
+      <parameter name="source_tool" type="string" required="true">
+        <description>Tool that produced this finding: gosec | semgrep | golangci-lint | checkstyle | pmd | gitleaks | go-coverage | jacoco | manual</description>
+      </parameter>
+      <parameter name="remediation" type="string" required="false">
+        <description>Concrete remediation steps or code pattern to fix the issue.</description>
+      </parameter>
+      <parameter name="cwe" type="string" required="false">
+        <description>CWE identifier if applicable (e.g. CWE-89, CWE-798).</description>
+      </parameter>
+      <parameter name="fix_proposal_ref" type="string" required="false">
+        <description>Finding ID or path reference if a write_fix_proposal was already written for this finding.</description>
+      </parameter>
+    </parameters>
+    <returns type="Dict[str, Any]">
+      <description>{success, finding_id (CODE-XXXX), severity, message} on success. {success: false, errors} on validation failure.</description>
+    </returns>
+    <examples>
+
+<function=create_code_finding>
+  <parameter=finding_type>sast</parameter>
+  <parameter=severity>high</parameter>
+  <parameter=rule_id>G401</parameter>
+  <parameter=file_path>internal/crypto/hash.go</parameter>
+  <parameter=line_number>23</parameter>
+  <parameter=description>Use of weak cryptographic hash MD5 via crypto/md5.New() on line 23 of internal/crypto/hash.go. Flagged by gosec rule G401 (Use of weak cryptographic primitive).</parameter>
+  <parameter=impact>MD5 is cryptographically broken and susceptible to collision attacks. If used for integrity verification or password hashing, an attacker could forge hashes or crack stored passwords, leading to authentication bypass or data tampering.</parameter>
+  <parameter=source_tool>gosec</parameter>
+  <parameter=remediation>Replace crypto/md5 with crypto/sha256 or crypto/sha512. For password storage, use bcrypt or argon2.</parameter>
+  <parameter=cwe>CWE-327</parameter>
+</function>
+
+<function=create_code_finding>
+  <parameter=finding_type>secret</parameter>
+  <parameter=severity>critical</parameter>
+  <parameter=rule_id>aws-access-token</parameter>
+  <parameter=file_path>config/staging.yaml</parameter>
+  <parameter=line_number>14</parameter>
+  <parameter=description>AWS access key ID hardcoded in config/staging.yaml line 14, detected by gitleaks rule aws-access-token. Key begins with AKIA and appears to be a valid IAM access key.</parameter>
+  <parameter=impact>Exposed AWS access key allows an attacker to authenticate to AWS services with the associated IAM permissions. Depending on the role, this could lead to full account takeover, data exfiltration from S3 buckets, or infrastructure manipulation.</parameter>
+  <parameter=source_tool>gitleaks</parameter>
+  <parameter=remediation>Immediately rotate the AWS key. Remove from source — use environment variables or AWS Secrets Manager. Add pre-commit hooks to prevent future secret commits.</parameter>
+  <parameter=cwe>CWE-798</parameter>
+</function>
+    </examples>
+  </tool>
+
+  <tool name="finish_code_audit">
+    <description>Complete the code audit and write the final executive summary.
+
+IMPORTANT: This tool can ONLY be called by the root CodeAuditAgent.
+Sub-agents must use agent_finish from agents_graph instead.
+
+IMPORTANT: All sub-agents must have completed (use wait_for_message) before calling this.
+
+This tool finalises the audit record. Call it once, after:
+1. All scanning sub-agents have reported back via agent_finish
+2. All findings have been recorded with create_code_finding
+3. Fix proposals have been written with write_fix_proposal (if any)
+</description>
+    <parameters>
+      <parameter name="executive_summary" type="string" required="true">
+        <description>High-level summary for engineering leadership: overall security posture, most critical findings, coverage gaps, and top remediation priorities. 3-5 paragraphs.</description>
+      </parameter>
+      <parameter name="languages_scanned" type="string" required="true">
+        <description>Comma-separated list of detected languages and versions (e.g. "Go 1.22, Java 17").</description>
+      </parameter>
+      <parameter name="tools_run" type="string" required="true">
+        <description>Comma-separated list of tools successfully executed (e.g. "gosec, semgrep, golangci-lint, gitleaks").</description>
+      </parameter>
+      <parameter name="tools_skipped" type="string" required="false">
+        <description>Comma-separated list of tools that were skipped and why (e.g. "jacoco: not installed, pmd: Java not detected").</description>
+      </parameter>
+      <parameter name="total_findings" type="integer" required="true">
+        <description>Total number of findings reported across all sub-agents (must match the number of create_code_finding calls).</description>
+      </parameter>
+      <parameter name="coverage_summary" type="string" required="false">
+        <description>Brief coverage summary if measured (e.g. "Overall line coverage: 62.3%. Lowest: internal/db/query.go at 12%").</description>
+      </parameter>
+    </parameters>
+    <returns type="Dict[str, Any]">
+      <description>{success, audit_completed, message, total_findings_recorded}.</description>
+    </returns>
+    <examples>
+
+<function=finish_code_audit>
+  <parameter=executive_summary>The Go-SCP codebase was assessed for security, quality, and test coverage. Three high-severity SAST findings were identified including use of weak cryptographic primitives (MD5/SHA1), missing input validation on public HTTP handlers, and a hardcoded credential in the staging configuration. Code quality analysis flagged 12 medium-severity issues primarily around error handling and shadowed variables. Test coverage is 47% overall with the authentication package at 11% — well below the recommended 80% threshold.
+
+Immediate actions: rotate the exposed AWS key, replace weak hash functions with SHA-256, and add parameterised query enforcement for database calls. Short-term: improve test coverage in the auth package and address the top 5 golangci-lint error handling warnings.</parameter>
+  <parameter=languages_scanned>Go 1.22</parameter>
+  <parameter=tools_run>gosec, semgrep, golangci-lint, gitleaks, go-coverage</parameter>
+  <parameter=tools_skipped>jacoco: Java not detected, checkstyle: Java not detected, pmd: Java not detected</parameter>
+  <parameter=total_findings>18</parameter>
+  <parameter=coverage_summary>Overall: 47.2%. Critical gap: internal/auth/ at 11.4%, internal/db/ at 28.9%.</parameter>
+</function>
+    </examples>
+  </tool>
+</tools>

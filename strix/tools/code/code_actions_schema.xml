@@ -1,0 +1,134 @@
+<tools>
+  <tool name="setup_repo">
+    <description>Clone a git URL or register a local path/folder as the code audit target.
+
+Accepts:
+- HTTP/HTTPS/SSH git URLs  →  cloned to strix_runs/&lt;run_name&gt;/repo/
+- Absolute or relative local paths  →  used in-place (no copy)
+
+Safe to call multiple times — skips clone if destination already exists.
+
+Returns the absolute local repo_path and the workspace_subdir name
+(used to find the repo at /workspace/&lt;workspace_subdir&gt; inside Docker).
+
+Call this FIRST before any scanning.
+</description>
+    <parameters>
+      <parameter name="repo" type="string" required="true">
+        <description>Git URL (https://github.com/...) or absolute/relative local path to the repository or folder to audit.</description>
+      </parameter>
+      <parameter name="run_name" type="string" required="true">
+        <description>The run identifier (e.g. strix-run-abc123). Used as the parent directory for cloned repos and proposals.</description>
+      </parameter>
+      <parameter name="branch" type="string" required="false">
+        <description>Branch or tag to checkout (default: "main"). Ignored for local paths.</description>
+      </parameter>
+    </parameters>
+    <returns type="Dict[str, Any]">
+      <description>On success: {success, repo_path (abs local path), branch, commit_sha, is_clone, workspace_subdir}.
+On failure: {success: false, error}.</description>
+    </returns>
+    <examples>
+<function=setup_repo>
+  <parameter=repo>https://github.com/OWASP/Go-SCP</parameter>
+  <parameter=run_name>audit-run-abc123</parameter>
+  <parameter=branch>master</parameter>
+</function>
+
+<function=setup_repo>
+  <parameter=repo>/home/user/my-java-service</parameter>
+  <parameter=run_name>audit-run-abc123</parameter>
+</function>
+    </examples>
+  </tool>
+
+  <tool name="detect_language">
+    <description>Detect the primary programming language of a repository.
+
+Checks root and one level deep for:
+- go.mod  →  Go (go_modules)
+- pom.xml  →  Java (maven)
+- build.gradle / build.gradle.kts  →  Java (gradle)
+
+Returns detected language, build system, and evidence files found.
+</description>
+    <parameters>
+      <parameter name="repo_path" type="string" required="true">
+        <description>Absolute local path to the repository returned by setup_repo.</description>
+      </parameter>
+      <parameter name="hint" type="string" required="false">
+        <description>Force detection to "go" or "java" if already known. Default: "auto".</description>
+      </parameter>
+    </parameters>
+    <returns type="Dict[str, Any]">
+      <description>{success, detected ("go"|"java"|"unknown"), build_system, evidence [list of filenames found]}.</description>
+    </returns>
+    <examples>
+<function=detect_language>
+  <parameter=repo_path>/abs/path/to/strix_runs/audit-run-abc123/repo</parameter>
+</function>
+    </examples>
+  </tool>
+
+  <tool name="write_fix_proposal">
+    <description>Write a fix proposal (unified diff + optional test code) for human review.
+
+NEVER applies the fix automatically — writes files only for human inspection and approval.
+
+Proposal files are written to:
+  strix_runs/&lt;run_name&gt;/proposals/&lt;finding_id&gt;/fix.diff
+  strix_runs/&lt;run_name&gt;/proposals/&lt;finding_id&gt;/&lt;test_file_path&gt;
+
+The unified_diff must be a valid unified diff (--- a/... +++ b/...).
+</description>
+    <parameters>
+      <parameter name="run_name" type="string" required="true">
+        <description>The run identifier (same as used in setup_repo).</description>
+      </parameter>
+      <parameter name="finding_id" type="string" required="true">
+        <description>The finding ID this fix addresses (e.g. CODE-0001). Used as the proposal subdirectory name.</description>
+      </parameter>
+      <parameter name="file_path" type="string" required="true">
+        <description>Relative path of the source file being fixed (e.g. cmd/server/main.go). For documentation purposes.</description>
+      </parameter>
+      <parameter name="unified_diff" type="string" required="true">
+        <description>Complete unified diff in --- a/file +++ b/file format. Must include context lines (3 minimum).</description>
+      </parameter>
+      <parameter name="test_code" type="string" required="false">
+        <description>Optional test code that exercises or verifies the fix. Leave empty if no test is proposed.</description>
+      </parameter>
+      <parameter name="test_file_path" type="string" required="false">
+        <description>Filename for the test file (e.g. main_test.go). Defaults to fix_test.go if test_code is provided.</description>
+      </parameter>
+    </parameters>
+    <returns type="Dict[str, Any]">
+      <description>{success, proposal_dir, diff_file, files_written, note}.</description>
+    </returns>
+    <examples>
+<function=write_fix_proposal>
+  <parameter=run_name>audit-run-abc123</parameter>
+  <parameter=finding_id>CODE-0003</parameter>
+  <parameter=file_path>internal/db/query.go</parameter>
+  <parameter=unified_diff>--- a/internal/db/query.go
++++ b/internal/db/query.go
+@@ -12,7 +12,7 @@ func GetUser(db *sql.DB, username string) (*User, error) {
+-	query := fmt.Sprintf("SELECT * FROM users WHERE username='%s'", username)
+-	rows, err := db.Query(query)
++	rows, err := db.Query("SELECT * FROM users WHERE username=$1", username)
+ 	if err != nil {
+ 		return nil, err
+ 	}</parameter>
+  <parameter=test_code>func TestGetUserSQLInjection(t *testing.T) {
+	db, mock, _ := sqlmock.New()
+	defer db.Close()
+	mock.ExpectQuery("SELECT").WithArgs("' OR 1=1 --").WillReturnRows(sqlmock.NewRows(nil))
+	_, _ = GetUser(db, "' OR 1=1 --")
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("SQL injection not handled: %v", err)
+	}
+}</parameter>
+  <parameter=test_file_path>query_sqli_test.go</parameter>
+</function>
+    </examples>
+  </tool>
+</tools>
