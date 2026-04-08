@@ -131,4 +131,60 @@ The unified_diff must be a valid unified diff (--- a/... +++ b/...).
 </function>
     </examples>
   </tool>
+
+  <tool name="run_command">
+    <description>Run a shell command locally on the host machine and return stdout, stderr, and return code.
+
+This is the primary tool for executing code analysis commands:
+gosec, semgrep, golangci-lint, gitleaks, go test, checkstyle, pmd, find, cat, etc.
+
+The repo is on the local filesystem — use the absolute path returned by setup_repo as the cwd.
+
+Rules:
+- cwd must be an absolute path to a directory inside the repo
+- Analysis and read-only commands only — do NOT modify repo files
+- For multi-module Go repos, run tools per module (each directory with a go.mod)
+- timeout defaults to 120s; use up to 600s for slow tools like go test or semgrep
+</description>
+    <parameters>
+      <parameter name="command" type="string" required="true">
+        <description>Shell command to run. Examples:
+  gosec -fmt json ./...
+  semgrep scan --config p/golang --json --timeout 120 .
+  golangci-lint run --out-format json ./...
+  gitleaks detect --source . --report-format json --no-git
+  go test -coverprofile=/tmp/cov.out ./...
+  find . -name "go.mod" -not -path "*/vendor/*"
+  cat go.mod</description>
+      </parameter>
+      <parameter name="cwd" type="string" required="false">
+        <description>Absolute path to run the command in. Defaults to current working directory. For per-module scans, pass the module directory (e.g. /abs/path/to/repo/api).</description>
+      </parameter>
+      <parameter name="timeout" type="integer" required="false">
+        <description>Timeout in seconds (default 120, max 600). Use 300+ for go test with coverage or semgrep on large repos.</description>
+      </parameter>
+    </parameters>
+    <returns type="Dict[str, Any]">
+      <description>{success, returncode, stdout (up to 50k chars), stderr (up to 10k chars), truncated}. On timeout or error: {success: false, error}.</description>
+    </returns>
+    <examples>
+
+<function=run_command>
+  <parameter=command>gosec -fmt json -out /tmp/gosec.json ./... 2>&1; cat /tmp/gosec.json</parameter>
+  <parameter=cwd>/Users/user/projects/my-service/api</parameter>
+  <parameter=timeout>120</parameter>
+</function>
+
+<function=run_command>
+  <parameter=command>find . -name "go.mod" -not -path "*/vendor/*" -not -path "*/.git/*"</parameter>
+  <parameter=cwd>/Users/user/projects/my-service</parameter>
+</function>
+
+<function=run_command>
+  <parameter=command>go test -coverprofile=/tmp/coverage.out -covermode=atomic -timeout 300s ./... 2>&1 | tail -20; go tool cover -func=/tmp/coverage.out | grep -E "^total:|0\.0%"</parameter>
+  <parameter=cwd>/Users/user/projects/my-service/api</parameter>
+  <parameter=timeout>360</parameter>
+</function>
+    </examples>
+  </tool>
 </tools>

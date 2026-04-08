@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
-# IMPORTANT: must be set before any strix imports so the tool registry
-# sees the correct mode and Docker sandbox is used for tool execution.
+# strix-code runs WITHOUT Docker — scanning tools execute locally on the host.
+# STRIX_SANDBOX_MODE=false ensures sandbox_execution=False tools (run_command,
+# create_code_finding, etc.) are registered. The CodeAuditAgent overrides
+# _initialize_sandbox_and_state to skip Docker entirely.
 import os
 os.environ["STRIX_SANDBOX_MODE"] = "false"
 
@@ -256,9 +258,7 @@ async def _run_audit(args: argparse.Namespace) -> None:
     set_global_tracer(tracer)
 
     def _cleanup() -> None:
-        from strix.runtime import cleanup_runtime
         tracer.cleanup()
-        cleanup_runtime()
 
     def _signal_handler(_signum: int, _frame: Any) -> None:
         tracer.cleanup()
@@ -270,9 +270,6 @@ async def _run_audit(args: argparse.Namespace) -> None:
     if hasattr(signal, "SIGHUP"):
         signal.signal(signal.SIGHUP, _signal_handler)
 
-    # Build local_sources so Docker sandbox mounts the repo at /workspace/<subdir>
-    local_sources = [{"source_path": repo_path, "workspace_subdir": workspace_subdir}]
-
     llm_config = LLMConfig(
         skills=["code_audit_root"],
         scan_mode="deep",
@@ -282,13 +279,13 @@ async def _run_audit(args: argparse.Namespace) -> None:
     agent_config: dict[str, Any] = {
         "llm_config": llm_config,
         "max_iterations": 200,
-        "local_sources": local_sources,
     }
 
     try:
         agent = CodeAuditAgent(agent_config)
         await agent.run_audit(
             repo=args.repo,
+            repo_path=repo_path,
             branch=args.branch,
             language=args.lang,
             run_name=run_name,

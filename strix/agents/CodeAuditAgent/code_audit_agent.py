@@ -11,8 +11,8 @@ class CodeAuditAgent(BaseAgent):
     Orchestrates SAST, quality, coverage, and secrets scanning against
     Go or Java repositories. Proposes fixes for human review — never commits.
 
-    Docker sandbox is used for running scanning tools (gosec, semgrep, etc.)
-    via terminal_execute. The repository is mounted at /workspace/<subdir>.
+    Runs WITHOUT Docker — scanning tools (gosec, semgrep, golangci-lint, etc.)
+    execute directly on the host via the run_command tool.
     """
 
     max_iterations = 200
@@ -29,24 +29,32 @@ class CodeAuditAgent(BaseAgent):
 
         super().__init__(config)
 
+    async def _initialize_sandbox_and_state(self, task: str) -> None:
+        """Skip Docker — code audit tools run locally on the host."""
+        if not self.state.task:
+            self.state.task = task
+        self.state.add_message("user", task)
+
     async def run_audit(
         self,
         repo: str,
+        repo_path: str,
         branch: str,
         language: str,
         run_name: str,
         user_instructions: str = "",
     ) -> dict[str, Any]:
-        """Run a full code audit against the given repository."""
-        workspace_subdir = Path(repo).name if not repo.startswith(("http://", "https://", "git@", "ssh://")) else "repo"
+        """Run a full code audit against the given repository.
 
+        repo_path is the absolute local path to the cloned/validated repo.
+        """
         task_parts = [
-            f"Perform a comprehensive code security and quality audit.",
-            f"\n\nRepository: {repo}",
+            "Perform a comprehensive code security and quality audit.",
+            f"\n\nRepository source: {repo}",
+            f"\nLocal path (use this for all commands): {repo_path}",
             f"\nBranch: {branch}",
             f"\nLanguage hint: {language}",
             f"\nRun name: {run_name}",
-            f"\nWorkspace path: /workspace/{workspace_subdir}",
         ]
 
         if user_instructions:
