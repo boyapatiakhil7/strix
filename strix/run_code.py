@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# IMPORTANT: must be set before any strix imports so the tool registry
+# sees the correct mode and Docker sandbox is used for tool execution.
+import os
+os.environ["STRIX_SANDBOX_MODE"] = "false"
+
 """
 Strix Code — AI-powered code security and quality auditor.
 
