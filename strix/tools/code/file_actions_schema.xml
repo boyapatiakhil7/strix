@@ -1,0 +1,105 @@
+<tools>
+  <tool name="list_files_local">
+    <description>List files in a directory, optionally filtered by glob pattern.
+
+Used in the fix proposal phase to locate source files before reading them for diff drafting.
+Returns file paths relative to the given root, with sizes in bytes.
+Only files are returned — directories are excluded.
+</description>
+    <parameters>
+      <parameter name="path" type="string" required="true">
+        <description>Absolute path to the directory to list.</description>
+      </parameter>
+      <parameter name="pattern" type="string" required="false">
+        <description>Glob pattern to filter results (default "**/*"). Examples: "**/*.go", "**/*.java", "internal/**/*.go", "*.md".</description>
+      </parameter>
+    </parameters>
+    <returns type="Dict[str, Any]">
+      <description>{success, root, pattern, count, files: [{path, size_bytes}], truncated}. Capped at 1000 entries.</description>
+    </returns>
+    <examples>
+<function=list_files_local>
+  <parameter=path>/abs/path/to/repo/internal/db</parameter>
+  <parameter=pattern>**/*.go</parameter>
+</function>
+
+<function=list_files_local>
+  <parameter=path>/abs/path/to/repo</parameter>
+  <parameter=pattern>**/go.mod</parameter>
+</function>
+    </examples>
+  </tool>
+
+  <tool name="read_source_file">
+    <description>Read a source file with line numbers prepended.
+
+Used in the fix proposal phase to read the exact lines flagged by a finding,
+providing context for drafting a correct unified diff.
+
+start_line and end_line are 1-based and inclusive. end_line=0 reads to EOF.
+Max 500 KB per call — use start_line/end_line for large files.
+</description>
+    <parameters>
+      <parameter name="file_path" type="string" required="true">
+        <description>Absolute path to the source file to read.</description>
+      </parameter>
+      <parameter name="start_line" type="integer" required="false">
+        <description>First line to read, 1-based (default 1).</description>
+      </parameter>
+      <parameter name="end_line" type="integer" required="false">
+        <description>Last line to read, 1-based inclusive. 0 = read to EOF (default).</description>
+      </parameter>
+    </parameters>
+    <returns type="Dict[str, Any]">
+      <description>{success, file_path, total_lines, start_line, end_line, content (with line numbers)}.</description>
+    </returns>
+    <examples>
+<function=read_source_file>
+  <parameter=file_path>/abs/path/to/repo/internal/db/query.go</parameter>
+  <parameter=start_line>40</parameter>
+  <parameter=end_line>65</parameter>
+</function>
+
+<function=read_source_file>
+  <parameter=file_path>/abs/path/to/repo/cmd/server/main.go</parameter>
+</function>
+    </examples>
+  </tool>
+
+  <tool name="search_files_local">
+    <description>Search file contents by regex pattern across a directory tree.
+
+Used in the fix proposal phase to find all callers or usages of a vulnerable function
+before writing a fix, ensuring the unified diff addresses every affected call site.
+
+Returns matching lines with file path and line number. Max 500 results.
+</description>
+    <parameters>
+      <parameter name="path" type="string" required="true">
+        <description>Absolute path to the directory to search in.</description>
+      </parameter>
+      <parameter name="pattern" type="string" required="true">
+        <description>Regular expression pattern to search for (Python re syntax).</description>
+      </parameter>
+      <parameter name="file_glob" type="string" required="false">
+        <description>Glob pattern to restrict which files are searched (default "**/*"). Examples: "**/*.go", "**/*.java", "internal/**/*.go".</description>
+      </parameter>
+    </parameters>
+    <returns type="Dict[str, Any]">
+      <description>{success, root, pattern, count, matches: [{file, line, content}], truncated}.</description>
+    </returns>
+    <examples>
+<function=search_files_local>
+  <parameter=path>/abs/path/to/repo</parameter>
+  <parameter=pattern>md5\.New\(\)|MD5\.digest</parameter>
+  <parameter=file_glob>**/*.go</parameter>
+</function>
+
+<function=search_files_local>
+  <parameter=path>/abs/path/to/repo</parameter>
+  <parameter=pattern>GetUser\(</parameter>
+  <parameter=file_glob>**/*.go</parameter>
+</function>
+    </examples>
+  </tool>
+</tools>

@@ -1,0 +1,257 @@
+<tools>
+  <tool name="run_gosec">
+    <description>Run gosec security scanner on Go module directories.
+
+Runs `gosec -fmt json ./...` in each module directory.
+Auto-records findings via create_code_finding internally.
+Returns a clean summary — never returns raw gosec JSON to the agent.
+
+modules_json must be a JSON array of module paths relative to repo_path.
+</description>
+    <parameters>
+      <parameter name="repo_path" type="string" required="true">
+        <description>Absolute path to the repository root (returned by setup_repo).</description>
+      </parameter>
+      <parameter name="modules_json" type="string" required="true">
+        <description>JSON array of module directory paths relative to repo_path. Example: '["api/", "workers/platform/", "workers/graph/"]'. Use '["./"]' for single-module repos.</description>
+      </parameter>
+    </parameters>
+    <returns type="Dict[str, Any]">
+      <description>{success, findings_recorded, modules_scanned, modules_failed}. If not installed: {success: false, skipped: true, reason}.</description>
+    </returns>
+    <examples>
+<function=run_gosec>
+  <parameter=repo_path>/abs/path/to/repo</parameter>
+  <parameter=modules_json>["api/", "workers/platform/", "workers/graph/"]</parameter>
+</function>
+
+<function=run_gosec>
+  <parameter=repo_path>/abs/path/to/single-module-repo</parameter>
+  <parameter=modules_json>["./"]</parameter>
+</function>
+    </examples>
+  </tool>
+
+  <tool name="run_semgrep">
+    <description>Run semgrep SAST scanner on the repository.
+
+Selects the appropriate ruleset based on language (p/golang or p/java).
+scan_paths_json restricts scanning to specific directories (default: entire repo).
+Auto-records findings via create_code_finding internally.
+Returns a clean summary — never returns raw semgrep JSON.
+</description>
+    <parameters>
+      <parameter name="repo_path" type="string" required="true">
+        <description>Absolute path to the repository root.</description>
+      </parameter>
+      <parameter name="language" type="string" required="true">
+        <description>"go" or "java" — selects semgrep ruleset (p/golang or p/java).</description>
+      </parameter>
+      <parameter name="scan_paths_json" type="string" required="false">
+        <description>JSON array of paths relative to repo_path to scan. Default "." scans the entire repo. Example: '["api/", "workers/"]'.</description>
+      </parameter>
+    </parameters>
+    <returns type="Dict[str, Any]">
+      <description>{success, findings_recorded, rules_matched, total_semgrep_results}. If not installed: {success: false, skipped: true, reason}.</description>
+    </returns>
+    <examples>
+<function=run_semgrep>
+  <parameter=repo_path>/abs/path/to/repo</parameter>
+  <parameter=language>go</parameter>
+</function>
+
+<function=run_semgrep>
+  <parameter=repo_path>/abs/path/to/repo</parameter>
+  <parameter=language>java</parameter>
+  <parameter=scan_paths_json>["src/main/java/"]</parameter>
+</function>
+    </examples>
+  </tool>
+
+  <tool name="run_golangci_lint">
+    <description>Run golangci-lint code quality scanner on Go module directories.
+
+Runs `golangci-lint run --out-format json ./...` per module.
+Auto-records findings via create_code_finding internally.
+Returns a clean summary — never returns raw linter JSON.
+</description>
+    <parameters>
+      <parameter name="repo_path" type="string" required="true">
+        <description>Absolute path to the repository root.</description>
+      </parameter>
+      <parameter name="modules_json" type="string" required="true">
+        <description>JSON array of module directory paths relative to repo_path. Example: '["api/", "workers/platform/"]'. Use '["./"]' for single-module repos.</description>
+      </parameter>
+    </parameters>
+    <returns type="Dict[str, Any]">
+      <description>{success, findings_recorded, modules_scanned, modules_failed, linters_triggered}. If not installed: {success: false, skipped: true, reason}.</description>
+    </returns>
+    <examples>
+<function=run_golangci_lint>
+  <parameter=repo_path>/abs/path/to/repo</parameter>
+  <parameter=modules_json>["api/", "workers/platform/"]</parameter>
+</function>
+    </examples>
+  </tool>
+
+  <tool name="run_checkstyle">
+    <description>Run Checkstyle style checker on Java source files.
+
+Looks for 'checkstyle' on PATH or accepts an explicit JAR path.
+config: "google" (default) or "sun" — selects the bundled rule config.
+Auto-records findings via create_code_finding internally.
+Returns a clean summary — never returns raw XML.
+</description>
+    <parameters>
+      <parameter name="repo_path" type="string" required="true">
+        <description>Absolute path to the repository root. Source files are expected under src/.</description>
+      </parameter>
+      <parameter name="checkstyle_jar" type="string" required="false">
+        <description>Absolute path to the checkstyle JAR file. Leave empty to use 'checkstyle' from PATH.</description>
+      </parameter>
+      <parameter name="config" type="string" required="false">
+        <description>"google" (default) or "sun" — selects the bundled Checkstyle configuration.</description>
+      </parameter>
+    </parameters>
+    <returns type="Dict[str, Any]">
+      <description>{success, findings_recorded, files_checked}. If not found: {success: false, skipped: true, reason}.</description>
+    </returns>
+    <examples>
+<function=run_checkstyle>
+  <parameter=repo_path>/abs/path/to/java-repo</parameter>
+</function>
+
+<function=run_checkstyle>
+  <parameter=repo_path>/abs/path/to/java-repo</parameter>
+  <parameter=checkstyle_jar>/opt/tools/checkstyle-10.0-all.jar</parameter>
+  <parameter=config>google</parameter>
+</function>
+    </examples>
+  </tool>
+
+  <tool name="run_pmd">
+    <description>Run PMD static analysis on Java source files.
+
+Looks for 'pmd' on PATH or accepts an explicit binary path.
+Uses the Java quickstart ruleset.
+Auto-records findings via create_code_finding internally.
+Returns a clean summary — never returns raw PMD JSON.
+</description>
+    <parameters>
+      <parameter name="repo_path" type="string" required="true">
+        <description>Absolute path to the repository root. Source files are expected under src/.</description>
+      </parameter>
+      <parameter name="pmd_bin" type="string" required="false">
+        <description>Absolute path to the PMD binary. Leave empty to use 'pmd' from PATH.</description>
+      </parameter>
+    </parameters>
+    <returns type="Dict[str, Any]">
+      <description>{success, findings_recorded, rules_triggered}. If not found: {success: false, skipped: true, reason}.</description>
+    </returns>
+    <examples>
+<function=run_pmd>
+  <parameter=repo_path>/abs/path/to/java-repo</parameter>
+</function>
+    </examples>
+  </tool>
+
+  <tool name="run_go_coverage">
+    <description>Run go test with coverage profiling on Go module directories.
+
+Runs `go test -coverprofile=... ./...` then `go tool cover -func` per module.
+Records an INFO/LOW/HIGH finding per module based on coverage percentage.
+low_coverage_threshold: modules below this % get a finding (default 50).
+
+Auto-records findings via create_code_finding internally.
+Returns a clean summary with per-module coverage percentages.
+</description>
+    <parameters>
+      <parameter name="repo_path" type="string" required="true">
+        <description>Absolute path to the repository root.</description>
+      </parameter>
+      <parameter name="modules_json" type="string" required="true">
+        <description>JSON array of module directory paths relative to repo_path. Example: '["api/", "workers/platform/"]'. Use '["./"]' for single-module repos.</description>
+      </parameter>
+      <parameter name="low_coverage_threshold" type="integer" required="false">
+        <description>Coverage percentage below which a finding is recorded (default 50). Modules at exactly 0% get a HIGH finding.</description>
+      </parameter>
+    </parameters>
+    <returns type="Dict[str, Any]">
+      <description>{success, findings_recorded, modules_scanned, modules_failed, overall_avg_coverage_pct, module_totals: [{module, total_pct}]}.</description>
+    </returns>
+    <examples>
+<function=run_go_coverage>
+  <parameter=repo_path>/abs/path/to/repo</parameter>
+  <parameter=modules_json>["api/", "workers/platform/"]</parameter>
+</function>
+    </examples>
+  </tool>
+
+  <tool name="run_jacoco">
+    <description>Run JaCoCo test coverage for Java projects.
+
+Runs `mvn test jacoco:report` (Maven) or `./gradlew test jacocoTestReport` (Gradle).
+Parses the JaCoCo XML report and records coverage findings per class.
+build_system: "maven", "gradle", or "auto" (detected from pom.xml/build.gradle).
+
+Auto-records findings via create_code_finding internally.
+Returns a clean summary with overall line coverage percentage.
+</description>
+    <parameters>
+      <parameter name="repo_path" type="string" required="true">
+        <description>Absolute path to the repository root.</description>
+      </parameter>
+      <parameter name="build_system" type="string" required="false">
+        <description>"maven", "gradle", or "auto" (default). Auto-detects from pom.xml or build.gradle presence.</description>
+      </parameter>
+      <parameter name="low_coverage_threshold" type="integer" required="false">
+        <description>Line coverage percentage below which a class finding is recorded (default 50).</description>
+      </parameter>
+    </parameters>
+    <returns type="Dict[str, Any]">
+      <description>{success, findings_recorded, overall_line_coverage_pct, low_coverage_classes, total_classes_below_threshold}.</description>
+    </returns>
+    <examples>
+<function=run_jacoco>
+  <parameter=repo_path>/abs/path/to/java-repo</parameter>
+</function>
+
+<function=run_jacoco>
+  <parameter=repo_path>/abs/path/to/java-repo</parameter>
+  <parameter=build_system>maven</parameter>
+  <parameter=low_coverage_threshold>70</parameter>
+</function>
+    </examples>
+  </tool>
+
+  <tool name="run_gitleaks">
+    <description>Run gitleaks to detect hardcoded secrets and credentials.
+
+Scans the working tree and (by default) full git history.
+Secret values are NEVER stored in findings — only the rule ID, file, and line are recorded.
+Auto-records CRITICAL findings via create_code_finding internally.
+Returns a summary — never returns raw gitleaks JSON.
+</description>
+    <parameters>
+      <parameter name="repo_path" type="string" required="true">
+        <description>Absolute path to the repository root.</description>
+      </parameter>
+      <parameter name="scan_git_history" type="boolean" required="false">
+        <description>If true (default), scans full git commit history in addition to the working tree. Set to false for non-git directories.</description>
+      </parameter>
+    </parameters>
+    <returns type="Dict[str, Any]">
+      <description>{success, findings_recorded, git_history_scanned}. If not installed: {success: false, skipped: true, reason}.</description>
+    </returns>
+    <examples>
+<function=run_gitleaks>
+  <parameter=repo_path>/abs/path/to/repo</parameter>
+</function>
+
+<function=run_gitleaks>
+  <parameter=repo_path>/abs/path/to/repo</parameter>
+  <parameter=scan_git_history>false</parameter>
+</function>
+    </examples>
+  </tool>
+</tools>
