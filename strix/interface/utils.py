@@ -310,15 +310,23 @@ def build_live_stats_text(tracer: Any, agent_config: dict[str, Any] | None = Non
         stats_text.append("\n")
 
     vuln_count = len(tracer.vulnerability_reports)
+    code_findings = getattr(tracer, "code_findings", [])
+    code_finding_count = len(code_findings)
     tool_count = tracer.get_real_tool_count()
     agent_count = len(tracer.agents)
 
-    stats_text.append("Vulnerabilities ", style="dim")
-    stats_text.append(f"{vuln_count}", style="white")
+    if code_finding_count > 0:
+        stats_text.append("Findings ", style="dim")
+        stats_text.append(f"{code_finding_count}", style="white")
+    else:
+        stats_text.append("Vulnerabilities ", style="dim")
+        stats_text.append(f"{vuln_count}", style="white")
     stats_text.append("\n")
-    if vuln_count > 0:
+
+    all_reports = code_findings if code_finding_count > 0 else tracer.vulnerability_reports
+    if len(all_reports) > 0:
         severity_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
-        for report in tracer.vulnerability_reports:
+        for report in all_reports:
             severity = report.get("severity", "").lower()
             if severity in severity_counts:
                 severity_counts[severity] += 1

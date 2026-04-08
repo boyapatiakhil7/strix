@@ -361,6 +361,7 @@ def create_agent(
         from strix.llm.config import LLMConfig
 
         parent_agent = _agent_instances.get(parent_id)
+        agent_cls = type(parent_agent) if parent_agent is not None else StrixAgent
 
         timeout = None
         scan_mode = "deep"
@@ -375,7 +376,9 @@ def create_agent(
                 is_whitebox = parent_agent.llm_config.is_whitebox
             interactive = getattr(parent_agent.llm_config, "interactive", False)
 
-        if is_whitebox:
+        from strix.agents.CodeAuditAgent import CodeAuditAgent
+
+        if is_whitebox and not isinstance(parent_agent, CodeAuditAgent):
             whitebox_guidance = (
                 "\n\nWhite-box execution guidance (recommended when source is available):\n"
                 "- Use structural AST mapping (`sg` or `tree-sitter`) where it helps source analysis; "
@@ -412,7 +415,7 @@ def create_agent(
             "state": state,
         }
 
-        agent = StrixAgent(agent_config)
+        agent = agent_cls(agent_config)
 
         inherited_messages = []
         if inherit_context:
@@ -531,7 +534,7 @@ def agent_finish(
                 "agent_completed": False,
                 "error": (
                     "This tool can only be used by subagents. "
-                    "Root/main agents must use finish_scan instead."
+                    "Root/main agents must use finish_scan or finish_code_audit instead."
                 ),
                 "parent_notified": False,
             }

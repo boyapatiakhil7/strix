@@ -202,16 +202,18 @@ def write_fix_proposal(
         return {"success": False, "error": "run_name cannot be empty"}
     if not finding_id or not finding_id.strip():
         return {"success": False, "error": "finding_id cannot be empty"}
-    if not unified_diff or not unified_diff.strip():
-        return {"success": False, "error": "unified_diff cannot be empty"}
+    if (not unified_diff or not unified_diff.strip()) and (not test_code or not test_code.strip()):
+        return {"success": False, "error": "unified_diff or test_code must be provided"}
 
     proposal_dir = Path("strix_runs") / run_name.strip() / "proposals" / finding_id.strip()
     proposal_dir.mkdir(parents=True, exist_ok=True)
 
-    diff_file = proposal_dir / "fix.diff"
-    diff_file.write_text(unified_diff, encoding="utf-8")
+    written: list[str] = []
 
-    written: list[str] = [str(diff_file)]
+    if unified_diff and unified_diff.strip():
+        diff_file = proposal_dir / "fix.diff"
+        diff_file.write_text(unified_diff, encoding="utf-8")
+        written.append(str(diff_file))
 
     if test_code and test_code.strip():
         test_fname = test_file_path.strip() if test_file_path and test_file_path.strip() else "fix_test.go"

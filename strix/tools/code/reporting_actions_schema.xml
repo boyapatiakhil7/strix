@@ -89,7 +89,7 @@ Rules:
   </tool>
 
   <tool name="finish_code_audit">
-    <description>Complete the code audit and write the final executive summary.
+    <description>Complete the code audit and write the final report with four DISTINCT sections.
 
 IMPORTANT: This tool can ONLY be called by the root CodeAuditAgent.
 Sub-agents must use agent_finish from agents_graph instead.
@@ -100,10 +100,21 @@ This tool finalises the audit record. Call it once, after:
 1. All scanning sub-agents have reported back via agent_finish
 2. All findings have been recorded with create_code_finding
 3. Fix proposals have been written with write_fix_proposal (if any)
+
+CRITICAL: Each section (architecture_summary, technical_analysis, recommendations) MUST contain UNIQUE content. Do NOT repeat the same text across sections. Each section serves a different purpose:
+- architecture_summary: Codebase structure, attack surface, and security posture
+- technical_analysis: Detailed breakdown of findings by category with specific examples
+- recommendations: Prioritised action items with concrete steps
 </description>
     <parameters>
-      <parameter name="executive_summary" type="string" required="true">
-        <description>High-level summary for engineering leadership: overall security posture, most critical findings, coverage gaps, and top remediation priorities. 3-5 paragraphs.</description>
+      <parameter name="architecture_summary" type="string" required="true">
+        <description>Codebase architecture and security posture overview: repo structure (modules, services, entry points), attack surface (APIs, external integrations, auth boundaries), dependency profile, and overall risk assessment. 2-3 paragraphs. Do NOT include remediation steps — those go in recommendations. Do NOT list individual findings — those go in technical_analysis.</description>
+      </parameter>
+      <parameter name="technical_analysis" type="string" required="true">
+        <description>Detailed technical breakdown of findings grouped by category (SAST, secrets, quality, coverage). For each category: number of findings, severity distribution, notable examples with file paths and rule IDs. Do NOT repeat the executive summary — this section provides the technical depth.</description>
+      </parameter>
+      <parameter name="recommendations" type="string" required="true">
+        <description>Prioritised remediation action items. List concrete steps ordered by severity/impact: what to fix, how to fix it, and relative effort. Include both immediate actions (critical/high) and longer-term improvements. Do NOT repeat findings descriptions — focus on what to DO about them.</description>
       </parameter>
       <parameter name="languages_scanned" type="string" required="true">
         <description>Comma-separated list of detected languages and versions (e.g. "Go 1.22, Java 17").</description>
@@ -127,14 +138,34 @@ This tool finalises the audit record. Call it once, after:
     <examples>
 
 <function=finish_code_audit>
-  <parameter=executive_summary>The Go-SCP codebase was assessed for security, quality, and test coverage. Three high-severity SAST findings were identified including use of weak cryptographic primitives (MD5/SHA1), missing input validation on public HTTP handlers, and a hardcoded credential in the staging configuration. Code quality analysis flagged 12 medium-severity issues primarily around error handling and shadowed variables. Test coverage is 47% overall with the authentication package at 11% — well below the recommended 80% threshold.
+  <parameter=architecture_summary>The repository is a multi-module Go monorepo (10 modules) comprising a GraphQL API gateway (api/), an external REST API (external-api/), a data pipeline core library (pipeline-core/), and 7 worker services handling ingestion, graph processing, vulnerability scanning, and platform operations. The API layer exposes GraphQL resolvers that accept tenant-scoped queries and mutations, with authentication delegated to Auth0 via middleware. External integrations include AWS services (S3, SQS, SNS), Redis for caching, PostgreSQL for persistence, and Neo4j for graph queries. The attack surface is significant: 2 HTTP entry points, multiple queue consumers, and direct database access patterns across all workers. With 6.4% average test coverage and 24 secrets in git history, the codebase carries moderate-to-high security risk.</parameter>
+  <parameter=technical_analysis>SAST (99 findings): gosec flagged 89 issues across 8 modules — 12 high-severity (G201/G202 SQL injection, G107 SSRF, G204 command injection), 45 medium (G104 unchecked errors, G304 path traversal), 32 low (G404 weak PRNG). semgrep matched 10 additional findings: 3 math/rand usage (go.lang.security.audit.crypto.math_random), 4 missing TLS (go.lang.security.audit.net.use-tls), 3 unsafe deserialization.
 
-Immediate actions: rotate the exposed AWS key, replace weak hash functions with SHA-256, and add parameterised query enforcement for database calls. Short-term: improve test coverage in the auth package and address the top 5 golangci-lint error handling warnings.</parameter>
+Secrets (24 findings): gitleaks found 24 credentials in git history including AWS access keys, JWT signing secrets, and database connection strings. All rated critical severity.
+
+Coverage (10 modules): Overall 6.4% line coverage. Worst: workers/graph at 0%, workers/platform at 0.2%. Best: pipeline-core at 34.2%. No module meets the 50% minimum threshold.
+
+Quality: golangci-lint was not executed due to CLI version incompatibility (v2 flag change). No quality findings recorded.</parameter>
+  <parameter=recommendations>IMMEDIATE (critical):
+1. Rotate all 24 exposed secrets found by gitleaks — prioritise AWS keys and database credentials
+2. Scrub git history using git-filter-repo or BFG Repo Cleaner to remove committed secrets
+3. Add pre-commit hooks (gitleaks --pre-commit) to prevent future secret commits
+
+SHORT-TERM (high, 1-2 sprints):
+4. Fix 12 SQL injection vectors (G201/G202) — switch to parameterised queries in all database calls
+5. Replace math/rand with crypto/rand in security-sensitive paths
+6. Add TLS configuration to all HTTP listeners and clients
+7. Fix permissive CORS — restrict AllowOrigins to specific domains
+
+MEDIUM-TERM (medium, 1-2 months):
+8. Address 45 unchecked error returns (G104) — add error handling in API and worker packages
+9. Increase test coverage from 6.4% to minimum 50% — prioritise api/ and workers/platform/
+10. Re-enable golangci-lint quality scanning after upgrading CI integration</parameter>
   <parameter=languages_scanned>Go 1.22</parameter>
-  <parameter=tools_run>gosec, semgrep, golangci-lint, gitleaks, go-coverage</parameter>
-  <parameter=tools_skipped>jacoco: Java not detected, checkstyle: Java not detected, pmd: Java not detected</parameter>
-  <parameter=total_findings>18</parameter>
-  <parameter=coverage_summary>Overall: 47.2%. Critical gap: internal/auth/ at 11.4%, internal/db/ at 28.9%.</parameter>
+  <parameter=tools_run>gosec, semgrep, gitleaks, go-coverage</parameter>
+  <parameter=tools_skipped>golangci-lint: CLI v2 flag incompatibility (--out-format removed), checkstyle: Java not detected, pmd: Java not detected, jacoco: Java not detected</parameter>
+  <parameter=total_findings>133</parameter>
+  <parameter=coverage_summary>Overall: 6.4%. All 10 modules below 50% threshold. Worst: workers/graph 0%, workers/platform 0.2%. Best: pipeline-core 34.2%.</parameter>
 </function>
     </examples>
   </tool>

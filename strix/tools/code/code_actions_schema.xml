@@ -91,11 +91,11 @@ The unified_diff must be a valid unified diff (--- a/... +++ b/...).
       <parameter name="file_path" type="string" required="true">
         <description>Relative path of the source file being fixed (e.g. cmd/server/main.go). For documentation purposes.</description>
       </parameter>
-      <parameter name="unified_diff" type="string" required="true">
-        <description>Complete unified diff in --- a/file +++ b/file format. Must include context lines (3 minimum).</description>
+      <parameter name="unified_diff" type="string" required="false">
+        <description>Complete unified diff in --- a/file +++ b/file format. Must include context lines (3 minimum). Can be empty for coverage proposals where only test code is being added.</description>
       </parameter>
       <parameter name="test_code" type="string" required="false">
-        <description>Optional test code that exercises or verifies the fix. Leave empty if no test is proposed.</description>
+        <description>Test code that exercises or verifies the fix. For coverage proposals, this is the PRIMARY output — write a complete, runnable test file. Leave empty if no test is proposed.</description>
       </parameter>
       <parameter name="test_file_path" type="string" required="false">
         <description>Filename for the test file (e.g. main_test.go). Defaults to fix_test.go if test_code is provided.</description>

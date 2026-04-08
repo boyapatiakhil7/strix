@@ -387,6 +387,7 @@ class Tracer:
         methodology: str,
         technical_analysis: str,
         recommendations: str,
+        section_labels: dict[str, str] | None = None,
     ) -> None:
         self.scan_results = {
             "scan_completed": True,
@@ -397,19 +398,28 @@ class Tracer:
             "success": True,
         }
 
-        self.final_scan_result = f"""# Executive Summary
+        labels = {
+            "executive_summary": "Executive Summary",
+            "methodology": "Methodology",
+            "technical_analysis": "Technical Analysis",
+            "recommendations": "Recommendations",
+        }
+        if section_labels:
+            labels.update(section_labels)
+
+        self.final_scan_result = f"""# {labels["executive_summary"]}
 
 {executive_summary.strip()}
 
-# Methodology
+# {labels["methodology"]}
 
 {methodology.strip()}
 
-# Technical Analysis
+# {labels["technical_analysis"]}
 
 {technical_analysis.strip()}
 
-# Recommendations
+# {labels["recommendations"]}
 
 {recommendations.strip()}
 """

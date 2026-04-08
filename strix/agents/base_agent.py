@@ -385,8 +385,8 @@ class BaseAgent(metaclass=AgentMeta):
                 "from user or other agents\n"
                 "- Use agents_graph_actions.agent_finish if you are a sub-agent "
                 "and your task is complete\n"
-                "- Use finish_actions.finish_scan if you are the root/main agent "
-                "and the scan is complete"
+                "- Use finish_actions.finish_scan (pentest) or finish_code_audit (code audit) "
+                "if you are the root/main agent and the scan is complete"
             )
             self.state.add_message("user", corrective_message)
             return False

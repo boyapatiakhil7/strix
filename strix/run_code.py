@@ -21,10 +21,13 @@ import atexit
 import logging
 import signal
 import sys
+import threading
+import time
 from pathlib import Path
 from typing import Any
 
 from rich.console import Console
+from rich.live import Live
 from rich.panel import Panel
 from rich.text import Text
 
@@ -192,14 +195,94 @@ def _display_finding(finding: dict[str, Any]) -> None:
     console.print()
 
 
-def _display_completion(run_name: str, finding_count: int) -> None:
+def _display_completion(run_name: str, tracer: Any) -> None:
+    from strix.interface.utils import get_severity_color
+
     console = Console()
+    findings: list[dict[str, Any]] = getattr(tracer, "code_findings", [])
+    finding_count = len(findings)
 
     body = Text()
     body.append("Code audit completed", style="bold #22c55e")
-    body.append(f"\n\nFindings recorded: ", style="white")
+
+    # --- Findings by category ---
+    by_type: dict[str, list[dict[str, Any]]] = {}
+    for f in findings:
+        ft = f.get("finding_type", "other")
+        by_type.setdefault(ft, []).append(f)
+
+    body.append("\n\n")
+    body.append("Findings  ", style="dim")
     body.append(str(finding_count), style="bold white")
-    body.append(f"\nOutput:           ", style="dim")
+    body.append("\n")
+
+    type_labels = {"sast": "SAST", "quality": "Quality", "coverage": "Coverage", "secret": "Secrets"}
+    for ft in ("sast", "quality", "coverage", "secret"):
+        items = by_type.get(ft, [])
+        if not items:
+            continue
+        label = type_labels.get(ft, ft)
+        sev_counts: dict[str, int] = {}
+        for f in items:
+            s = f.get("severity", "info").lower()
+            sev_counts[s] = sev_counts.get(s, 0) + 1
+
+        body.append(f"  {label:10s}", style="white")
+        parts = []
+        for sev in ("critical", "high", "medium", "low", "info"):
+            c = sev_counts.get(sev, 0)
+            if c > 0:
+                parts.append((sev, c))
+        for i, (sev, c) in enumerate(parts):
+            color = get_severity_color(sev)
+            body.append(f"{sev[0].upper()}:{c}", style=color)
+            if i < len(parts) - 1:
+                body.append(" ", style="dim")
+        body.append("\n")
+
+    # --- Coverage summary ---
+    cov_findings = by_type.get("coverage", [])
+    if cov_findings:
+        body.append("\n")
+        body.append("Coverage  ", style="dim")
+        for cf in cov_findings:
+            desc = cf.get("description", "")
+            module = cf.get("file_path", "?")
+            pct_str = ""
+            import re
+            match = re.search(r"([\d.]+)%", desc)
+            if match:
+                pct_str = match.group(1) + "%"
+            sev = cf.get("severity", "info").lower()
+            color = get_severity_color(sev)
+            body.append(f"\n  {module:40s}", style="white")
+            body.append(f" {pct_str:>6s}", style=f"bold {color}")
+
+    # --- Proposals written ---
+    proposals_dir = Path("strix_runs") / run_name / "proposals"
+    proposal_ids: list[str] = []
+    if proposals_dir.exists():
+        proposal_ids = sorted(d.name for d in proposals_dir.iterdir() if d.is_dir())
+
+    if proposal_ids:
+        body.append("\n\n")
+        body.append("Proposals ", style="dim")
+        body.append(str(len(proposal_ids)), style="bold white")
+        for pid in proposal_ids:
+            pdir = proposals_dir / pid
+            files = [f.name for f in pdir.iterdir() if f.is_file()]
+            has_test = any(f.endswith("_test.go") or f.endswith("Test.java") for f in files)
+            has_diff = "fix.diff" in files
+            icon = "test" if has_test and not has_diff else "fix" if has_diff else "test+fix"
+            body.append(f"\n  {pid:16s}", style="#60a5fa")
+            body.append(f" [{icon}]", style="dim")
+            for fname in sorted(files):
+                if fname != "fix.diff":
+                    body.append(f" {fname}", style="dim white")
+
+    # --- Output path ---
+    body.append("\n\n")
+    body.append("Output    ", style="dim")
     body.append(f"strix_runs/{run_name}", style="#60a5fa")
 
     panel = Panel(
@@ -281,16 +364,55 @@ async def _run_audit(args: argparse.Namespace) -> None:
         "max_iterations": 200,
     }
 
-    try:
-        agent = CodeAuditAgent(agent_config)
-        await agent.run_audit(
-            repo=args.repo,
-            repo_path=repo_path,
-            branch=args.branch,
-            language=args.lang,
-            run_name=run_name,
-            user_instructions=args.instruction or "",
+    from strix.interface.utils import build_live_stats_text
+
+    def _create_live_status() -> Panel:
+        status_text = Text()
+        status_text.append("Code audit in progress", style="bold #22c55e")
+        status_text.append("\n\n")
+        stats = build_live_stats_text(tracer, agent_config)
+        if stats:
+            status_text.append(stats)
+        return Panel(
+            status_text,
+            title="[bold white]STRIX CODE",
+            title_align="left",
+            border_style="#22c55e",
+            padding=(1, 2),
         )
+
+    try:
+        console.print()
+        with Live(
+            _create_live_status(), console=console, refresh_per_second=2, transient=False
+        ) as live:
+            stop_updates = threading.Event()
+
+            def _update_status() -> None:
+                while not stop_updates.is_set():
+                    try:
+                        live.update(_create_live_status())
+                        time.sleep(2)
+                    except Exception:  # noqa: BLE001
+                        break
+
+            update_thread = threading.Thread(target=_update_status, daemon=True)
+            update_thread.start()
+
+            try:
+                agent = CodeAuditAgent(agent_config)
+                await agent.run_audit(
+                    repo=args.repo,
+                    repo_path=repo_path,
+                    branch=args.branch,
+                    language=args.lang,
+                    run_name=run_name,
+                    user_instructions=args.instruction or "",
+                )
+            finally:
+                stop_updates.set()
+                update_thread.join(timeout=1)
+
     except Exception as e:
         console.print(f"[bold red]Audit error:[/] {e}")
         raise

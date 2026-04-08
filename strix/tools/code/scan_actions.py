@@ -346,10 +346,16 @@ def run_golangci_lint(
 
     for mod_path in modules:
         rc, stdout, stderr = _run(
-            "golangci-lint run --out-format json --timeout 120s ./...",
+            "golangci-lint run --output.json.path stdout --timeout 120s ./...",
             str(mod_path),
             timeout=180,
         )
+        if not stdout.strip() and "unknown flag" in stderr:
+            rc, stdout, stderr = _run(
+                "golangci-lint run --out-format json --timeout 120s ./...",
+                str(mod_path),
+                timeout=180,
+            )
 
         if not stdout.strip():
             modules_failed.append(f"{mod_path.name}: no output — {stderr[:200]}")

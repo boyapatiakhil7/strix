@@ -134,7 +134,9 @@ def create_code_finding(  # noqa: PLR0912, PLR0913
 @register_tool(sandbox_execution=False)
 def finish_code_audit(
     agent_state: Any,
-    executive_summary: str,
+    architecture_summary: str,
+    technical_analysis: str,
+    recommendations: str,
     languages_scanned: str,
     tools_run: str,
     tools_skipped: str,
@@ -157,8 +159,12 @@ def finish_code_audit(
         }
 
     validation_errors: list[str] = []
-    if not executive_summary or not executive_summary.strip():
-        validation_errors.append("executive_summary cannot be empty")
+    if not architecture_summary or not architecture_summary.strip():
+        validation_errors.append("architecture_summary cannot be empty")
+    if not technical_analysis or not technical_analysis.strip():
+        validation_errors.append("technical_analysis cannot be empty")
+    if not recommendations or not recommendations.strip():
+        validation_errors.append("recommendations cannot be empty")
     if not languages_scanned or not languages_scanned.strip():
         validation_errors.append("languages_scanned cannot be empty")
     if not tools_run or not tools_run.strip():
@@ -174,20 +180,23 @@ def finish_code_audit(
 
         tracer = get_global_tracer()
         if tracer:
-            summary_parts = [executive_summary.strip()]
-            if coverage_summary and coverage_summary.strip():
-                summary_parts.append(f"\n\nCoverage: {coverage_summary.strip()}")
-            summary_parts.append(f"\n\nLanguages: {languages_scanned.strip()}")
-            summary_parts.append(f"\nTools run: {tools_run.strip()}")
+            methodology_parts = [f"Languages: {languages_scanned.strip()}"]
+            methodology_parts.append(f"Tools run: {tools_run.strip()}")
             if tools_skipped and tools_skipped.strip():
-                summary_parts.append(f"\nTools skipped: {tools_skipped.strip()}")
-            summary_parts.append(f"\nTotal findings: {total_findings}")
+                methodology_parts.append(f"Tools skipped: {tools_skipped.strip()}")
+            if coverage_summary and coverage_summary.strip():
+                methodology_parts.append(f"Coverage: {coverage_summary.strip()}")
+            methodology_parts.append(f"Total findings: {total_findings}")
 
             tracer.update_scan_final_fields(
-                executive_summary=executive_summary.strip(),
-                methodology=f"Languages: {languages_scanned.strip()}. Tools: {tools_run.strip()}.",
-                technical_analysis="".join(summary_parts),
-                recommendations=executive_summary.strip(),
+                executive_summary=architecture_summary.strip(),
+                methodology="\n".join(methodology_parts),
+                technical_analysis=technical_analysis.strip(),
+                recommendations=recommendations.strip(),
+                section_labels={
+                    "executive_summary": "Architecture Summary",
+                    "methodology": "Scan Methodology",
+                },
             )
 
             finding_count = len(getattr(tracer, "code_findings", []))

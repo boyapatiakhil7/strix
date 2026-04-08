@@ -66,47 +66,66 @@ Collect finding IDs and summaries from each `agent_completion_report`.
 
 ## Phase 3 — Fix Proposal Phase
 
-For each `critical` or `high` finding (excluding gitleaks secrets):
+Group all `critical` and `high` findings by `rule_id`. For each distinct rule group, spawn ONE Think+Fix agent pair that covers ALL affected files for that rule.
 
-### Step A: Spawn Think Agent
+### Grouping rules:
+- Group findings that share the same `rule_id` (e.g. all G404 findings together, all G118 together)
+- Each group gets ONE Think Agent → ONE Fix Agent
+- The Fix Agent must write fix proposals for ALL files in the group
+- Do NOT spawn one agent per file — spawn one per rule pattern
+
+### Fix proposal priority:
+- ONLY coverage findings (go-coverage, jacoco) get Think+Fix agents
+- ALL other findings (SAST, quality, secrets) are recorded but do NOT get fix proposals — note them in recommendations instead
+- This keeps the audit focused on improving test coverage as the primary deliverable
+
+### Step A: Spawn Think Agent (one per rule group)
 ```
-Task: "Analyze this finding and determine the safest fix approach.
+Task: "Analyze this rule violation pattern and determine the safest fix approach.
 Use think() to reason step by step — root cause, attack surface, fix options, risks.
 Do NOT read any files. Call agent_finish with your fix strategy.
-Finding:
-  id: <finding_id>
-  rule_id: <rule_id>
-  file_path: <file_path>
-  line_number: <line_number>
-  description: <description>
-  impact: <impact>"
+
+Rule: <rule_id> (<count> occurrences)
+Severity: <severity>
+Affected files:
+  - <file_path_1>:<line_number_1>
+  - <file_path_2>:<line_number_2>
+  ...
+Description: <description from first finding>
+Impact: <impact>"
 ```
 
 Wait for Think Agent via `wait_for_message`.
 
-### Step B: Spawn Fix Agent
+### Step B: Spawn Fix Agent (one per coverage rule group)
 ```
-Task: "Write a fix proposal for <finding_id> in <file_path>.
-Fix strategy: <think_agent_finish_summary>
-1. Use read_source_file to read lines around <line_number> for context
-2. Use search_files_local to find all callers if the fix changes a signature
-3. Write a correct unified diff
-4. Call write_fix_proposal(run_name=<run_name>, finding_id=<finding_id>, ...)
-5. Call agent_finish when done"
+Task: "Write test proposals to improve coverage for the modules listed below.
+Coverage strategy: <think_agent_finish_summary>
+For EACH module:
+1. Use read_source_file to read the source files with lowest coverage (focus on exported functions)
+2. Use list_files_local to check if a _test.go file already exists
+3. Write idiomatic Go/Java test code covering the most critical untested paths
+4. Call write_fix_proposal with:
+   - unified_diff="" (empty — no source changes needed)
+   - test_code=<the full test file content>
+   - test_file_path=<e.g. handler_test.go>
+5. After ALL modules are addressed, call agent_finish
+
+Modules to cover:
+  - <finding_id_1>: <module_path_1> (current coverage: X%)
+  - <finding_id_2>: <module_path_2> (current coverage: Y%)
+  ..."
 ```
 
 Wait for Fix Agent via `wait_for_message`.
-
-### Skip fix proposals for:
-- Any finding from `source_tool=gitleaks` (rotate secrets manually)
-- Findings where fix requires architectural change (note this in executive_summary)
-- Findings with severity `low` or `info`
 
 ## Phase 4 — Finish
 
 ```python
 finish_code_audit(
-    executive_summary=<3-5 paragraphs: posture, top 3 criticals, coverage gaps, priorities>,
+    architecture_summary=<codebase structure, attack surface, security posture — 2-3 paragraphs>,
+    technical_analysis=<findings breakdown by category with severity counts and examples>,
+    recommendations=<prioritised remediation actions: immediate, short-term, medium-term>,
     languages_scanned=<detected languages>,
     tools_run=<all tools that executed>,
     tools_skipped=<tools skipped and why>,

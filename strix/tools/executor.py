@@ -276,7 +276,7 @@ async def _execute_single_tool(
         is_error, error_payload = _check_error_result(result)
 
         if (
-            tool_name in ("finish_scan", "agent_finish")
+            tool_name in ("finish_scan", "agent_finish", "finish_code_audit")
             and not is_error
             and isinstance(result, dict)
         ):
@@ -284,6 +284,8 @@ async def _execute_single_tool(
                 should_agent_finish = result.get("scan_completed", False)
             elif tool_name == "agent_finish":
                 should_agent_finish = result.get("agent_completed", False)
+            elif tool_name == "finish_code_audit":
+                should_agent_finish = result.get("audit_completed", False)
 
         _update_tracer_with_result(tracer, execution_id, is_error, result, error_payload)
 
